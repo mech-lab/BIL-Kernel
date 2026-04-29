@@ -10,7 +10,7 @@ Standardize Lean file formatting to prepare for other operations, especially `me
     The Lean source code to be processed by this tool.
 
 ??? "`normalizations` · list[str] · List of normalizations to apply"
-    Options: remove_sections, expand_decl_names, remove_duplicates, split_open_in_commands, normalize_module_comments, normalize_doc_comments. Default: remove_sections, remove_duplicates, split_open_in_commands.
+    Options: remove_sections, expand_decl_names, expand_scoped_notations, remove_duplicates, split_open_in_commands, normalize_module_comments, normalize_doc_comments. Default: remove_sections, remove_duplicates, split_open_in_commands.
 
 ??? "`failsafe` · bool · default: `True` · Return original if normalization fails"
     If true, returns the original content unchanged if normalization introduces errors. Defaults to true.
@@ -90,6 +90,35 @@ Standardize Lean file formatting to prepare for other operations, especially `me
     example (α : Type) (x : α) :
         Option.getD (Option.some x) x = x := by
       simp [Option.getD]
+    ```
+
+??? "`expand_scoped_notations`"
+    Expands scoped notations (those brought in by `open`) into their underlying applications. This runs Lean's delaborator with notations disabled, so the expanded form uses function application. Combined with `expand_decl_names`, constant names in the output are fully qualified.
+
+    Note: inside an expanded notation, all nested notations are stripped — including globals like +. This expander can be over-aggressive for notations whose body contains other, non-scoped notations.
+
+    Note: the delaborator isn't guaranteed to round-trip cleanly — coercions, universe annotations, and a few other constructs are known trouble spots and may produce output that doesn't re-elaborate. Uncommon in practice, but keep `failsafe` on if correctness matters.
+
+    **Before:**
+    ```lean
+    namespace MyNS
+    scoped infix:65 " ⊹ " => HAdd.hAdd
+    end MyNS
+
+    open MyNS
+
+    def x : Nat := (1 ⊹ 2) + 3
+    ```
+
+    **After:**
+    ```lean
+    namespace MyNS
+    scoped infix:65 " ⊹ " => HAdd.hAdd
+    end MyNS
+
+    open MyNS
+
+    def x : Nat := ( HAdd.hAdd  1  2 ) + 3
     ```
 
 ??? "`remove_duplicates`"

@@ -246,6 +246,7 @@ class EndpointMetadata(TypedDict, total=False):
     """Complete metadata for an API endpoint."""
 
     title: str
+    deprecated: str
     description: str  # One-line summary (used in CLI)
     details: str  # Full description (used in docs)
     inputs: list[InputField]
@@ -545,8 +546,9 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/check \\
     },
     "extract_theorems": {
         "title": "Extract Theorems",
+        "deprecated": "`extract_theorems` is deprecated and will be removed in a future release. Use [`extract_decls`](extract_decls.md) instead, which supports all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).",
         "details": "Split a file containing one or more theorems into smaller units, each containing a single theorem along with any required dependencies.",
-        "description": "split file into separate theorems with dependencies",
+        "description": "split file into separate theorems with dependencies (deprecated — use extract_decls)",
         "cli_output": {
             "mode": "multiple_files",
             "supports_output_dir": True,
@@ -657,7 +659,7 @@ Dictionary mapping theorem names to self-contained Lean code documents. Each key
     },
     "extract_decls": {
         "title": "Extract Declarations",
-        "details": "Split a file containing one or more declarations into smaller units, each containing a single declaration along with any required dependencies. Unlike extract_theorems, this works for all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).",
+        "details": "Split a file containing one or more declarations into smaller units, each containing a single declaration along with any required dependencies. This is the replacement for the deprecated [`extract_theorems`](extract_theorems.md) tool, and works for all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).",
         "description": "split file into separate declarations with dependencies",
         "cli_output": {
             "mode": "multiple_files",
@@ -2377,6 +2379,35 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/disprove \\
       simp [Option.getD]
     ```
 
+??? "`expand_scoped_notations`"
+    Expands scoped notations (those brought in by `open`) into their underlying applications. This runs Lean's delaborator with notations disabled, so the expanded form uses function application. Combined with `expand_decl_names`, constant names in the output are fully qualified.
+
+    Note: inside an expanded notation, all nested notations are stripped — including globals like +. This expander can be over-aggressive for notations whose body contains other, non-scoped notations.
+
+    Note: the delaborator isn't guaranteed to round-trip cleanly — coercions, universe annotations, and a few other constructs are known trouble spots and may produce output that doesn't re-elaborate. Uncommon in practice, but keep `failsafe` on if correctness matters.
+
+    **Before:**
+    ```lean
+    namespace MyNS
+    scoped infix:65 " ⊹ " => HAdd.hAdd
+    end MyNS
+
+    open MyNS
+
+    def x : Nat := (1 ⊹ 2) + 3
+    ```
+
+    **After:**
+    ```lean
+    namespace MyNS
+    scoped infix:65 " ⊹ " => HAdd.hAdd
+    end MyNS
+
+    open MyNS
+
+    def x : Nat := ( HAdd.hAdd  1  2 ) + 3
+    ```
+
 ??? "`remove_duplicates`"
     Removes duplicate commands, such as repeated `open` statements for the same module.
 
@@ -2457,7 +2488,7 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/normalize \\
                 "name": "normalizations",
                 "type": "list",
                 "description": "List of normalizations to apply",
-                "details": """Options: remove_sections, expand_decl_names, remove_duplicates, split_open_in_commands, normalize_module_comments, normalize_doc_comments. Default: remove_sections, remove_duplicates, split_open_in_commands.""",
+                "details": """Options: remove_sections, expand_decl_names, expand_scoped_notations, remove_duplicates, split_open_in_commands, normalize_module_comments, normalize_doc_comments. Default: remove_sections, remove_duplicates, split_open_in_commands.""",
                 "required": False,
                 "placeholder": "remove_sections, remove_duplicates, split_open_in_commands",
             },

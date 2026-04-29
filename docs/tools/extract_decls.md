@@ -1,6 +1,6 @@
 # extract_decls
 
-Split a file containing one or more declarations into smaller units, each containing a single declaration along with any required dependencies. Unlike extract_theorems, this works for all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).
+Split a file containing one or more declarations into smaller units, each containing a single declaration along with any required dependencies. This is the replacement for the deprecated [`extract_theorems`](extract_theorems.md) tool, and works for all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).
 
 [Try this example in the web UI](https://axle.axiommath.ai/extract_decls#data=eyJjb250ZW50Ijoic3RydWN0dXJlIFdlaWdodCB3aGVyZVxuICB2YWwgOiBOYXRcbiAgcG9zIDogdmFsID4gMCA6PSBieSBvbWVnYVxuXG5jbGFzcyBXZWlnaHRlZCAozrEgOiBUeXBlKSB3aGVyZVxuICB3ZWlnaHQgOiDOsSDihpIgV2VpZ2h0XG5cbmRlZiB0cml2aWFsV2VpZ2h0IDogV2VpZ2h0IDo9IOKfqDEsIGJ5IG9tZWdh4p+pXG5cbmluc3RhbmNlIDogV2VpZ2h0ZWQgTmF0IHdoZXJlXG4gIHdlaWdodCBfIDo9IHRyaXZpYWxXZWlnaHQiLCJpZ25vcmVfaW1wb3J0cyI6dHJ1ZSwiZW52aXJvbm1lbnQiOiJsZWFuLTQuMjguMCIsInRpbWVvdXRfc2Vjb25kcyI6MTIwfQ%3D%3D)
 

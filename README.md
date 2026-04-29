@@ -4,7 +4,7 @@
 
 Homepage: https://axle.axiommath.ai/
 
-## Announcements
+## Recent Announcements
 
 <details open>
 <summary><strong>April 15, 2026 - v1.2.0</strong></summary>
@@ -44,6 +44,17 @@ See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details an
 
 </details>
 
+[Past announcements](#past-announcements)
+
+## Documentation
+
+- [Installation Guide](docs/installation.md)
+- [Python API Reference](docs/python-api.md)
+- [CLI Reference](docs/cli-reference.md)
+- [Examples](examples/)
+
+## Past Announcements
+
 <details>
 <summary><strong>March 11, 2026 - v1.0.1</strong></summary>
 
@@ -78,10 +89,3 @@ We're excited to release AXLE to the public! AXLE provides proof verification an
 [Playground](https://axle.axiommath.ai) | [API docs](https://axle.axiommath.ai/v1/docs/) | [Why we built AXLE](https://axiommath.ai/territory/releasing-axle) | [Request more capacity](https://forms.gle/CdLKu45tEsRXtFQ29) | axle@axiommath.ai
 
 </details>
-
-## Documentation
-
-- [Installation Guide](docs/installation.md)
-- [Python API Reference](docs/python-api.md)
-- [CLI Reference](docs/cli-reference.md)
-- [Examples](examples/)

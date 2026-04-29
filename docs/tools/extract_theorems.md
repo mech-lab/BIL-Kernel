@@ -1,5 +1,8 @@
 # extract_theorems
 
+!!! warning "Deprecated"
+    `extract_theorems` is deprecated and will be removed in a future release. Use [`extract_decls`](extract_decls.md) instead, which supports all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).
+
 Split a file containing one or more theorems into smaller units, each containing a single theorem along with any required dependencies.
 
 [Try this example in the web UI](https://axle.axiommath.ai/extract_theorems#data=eyJjb250ZW50IjoiZGVmIGRvdWJsZSAobiA6IE5hdCkgOiBOYXQgOj0gMiAqIG5cbnRoZW9yZW0gZG91YmxlX2V2ZW4gOiDiiIAgbiA6IE5hdCwg4oiDIGsgOiBOYXQsIGRvdWJsZSBuID0gMiAqIGsgOj0gYnkgc29ycnlcbnRoZW9yZW0gZG91YmxlX3BvcyA6IOKIgCBuIDogTmF0LCBuID4gMCDihpIgZG91YmxlIG4gPiAwIDo9IGJ5IHNvcnJ5IiwiaWdub3JlX2ltcG9ydHMiOnRydWUsImVudmlyb25tZW50IjoibGVhbi00LjI3LjAiLCJ0aW1lb3V0X3NlY29uZHMiOjEyMH0%3D)

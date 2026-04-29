@@ -2,6 +2,17 @@
 
 Try AXLE in your browser with the [interactive demo notebook](https://colab.research.google.com/github/AxiomMath/axiom-lean-engine/blob/main/examples/starting_demo.ipynb).
 
+## MCP Server
+
+The [`axiom-axle-mcp`](https://pypi.org/project/axiom-axle-mcp/) package wraps AXLE as a [Model Context Protocol](https://modelcontextprotocol.io/) server, so an AI agent can call `check`, `verify_proof`, `extract_theorems`, and the rest of AXLE's tools directly.
+
+Supported clients include:
+
+- **Claude Code, Cursor, Windsurf, VS Code, Cline**, and other editors that speak MCP — point them at the `axiom-axle-mcp` package locally.
+- **Claude web, desktop, and mobile** — connect to the hosted server at `https://mcp.axiommath.ai/mcp` under Settings > Connectors.
+
+See the [PyPI page](https://pypi.org/project/axiom-axle-mcp/) for detailed installation and config instructions.
+
 ## Prerequisites
 
 Before using AXLE, set your API key:

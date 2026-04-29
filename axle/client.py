@@ -1,12 +1,15 @@
 """AXLE client for the Lean verification API."""
 
+import asyncio
 import json
 import logging
 import os
+import warnings
 from http import HTTPMethod
 from typing import Any, Final, cast
 
 import aiohttp
+import httpx
 import requests
 from tenacity import (
     before_sleep_log,
@@ -67,6 +70,7 @@ class AxleClient:
         max_concurrency: int | None = None,
         base_timeout_seconds: float | None = None,
         api_key: str | None = None,
+        http2: bool = True,
     ) -> None:
         """Constructor.
 
@@ -75,13 +79,16 @@ class AxleClient:
         Args:
             url: The URL of the AXLE server. Defaults to AXLE_API_URL env var
                 or https://axle.axiommath.ai.
-            max_concurrency: The maximum number of concurrent requests to the server.
+            max_concurrency: The maximum number of concurrent in-flight requests
+                this client will send at once. Enforced with an internal
+                semaphore, so the cap is uniform across HTTP/1.1 and HTTP/2.
                 Defaults to AXLE_MAX_CONCURRENCY env var or 20.
             base_timeout_seconds: The base timeout in seconds for requests.
                 Defaults to AXLE_TIMEOUT_SECONDS env var or 1_800.
             api_key: The API key to use for authentication.
                 Defaults to AXLE_API_KEY env var.
                 If not provided, no authentication will be used.
+            http2: Use HTTP/2 multiplexing via httpx. On by default.
         """
         if url is None:
             url = os.environ.get("AXLE_API_URL", self.DEFAULT_URL)
@@ -90,13 +97,19 @@ class AxleClient:
             url = url[:-1]
 
         self.url = url
+        self._http2 = http2
         # Defer creation of the session because it requires an async event loop,
-        # which may not be available at construction time.
-        self._session: aiohttp.ClientSession | None = None
+        # which may not be available at construction time. Holds either an
+        # aiohttp.ClientSession or httpx.AsyncClient.
+        self._session: aiohttp.ClientSession | httpx.AsyncClient | None = None
 
         if max_concurrency is None:
             max_concurrency = int(os.environ.get("AXLE_MAX_CONCURRENCY", self.MAX_CONCURRENCY))
         self.max_concurrency = max_concurrency
+
+        # Gates concurrent in-flight requests.
+        self._sem = asyncio.Semaphore(max_concurrency)
+        self._session_lock = asyncio.Lock()
 
         if base_timeout_seconds is None:
             base_timeout_seconds = float(
@@ -196,7 +209,16 @@ class AxleClient:
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> ExtractTheoremsResponse:
-        """Extract theorems with dependencies from Lean code."""
+        """Extract theorems with dependencies from Lean code.
+
+        Deprecated: use extract_decls instead, which supports all declaration kinds.
+        """
+        warnings.warn(
+            "extract_theorems is deprecated and will be removed in a future release. "
+            "Use extract_decls instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return ExtractTheoremsResponse.from_response(
             await self.run_one(
                 "extract_theorems",
@@ -560,7 +582,18 @@ class AxleClient:
 
     # Implementation details:
 
-    def _get_session(self) -> aiohttp.ClientSession:
+    def _get_session(self) -> aiohttp.ClientSession | httpx.AsyncClient:
+        if self._http2:
+            return httpx.AsyncClient(
+                http2=True,
+                limits=httpx.Limits(
+                    max_connections=self.max_concurrency,
+                    max_keepalive_connections=self.max_concurrency,
+                    keepalive_expiry=120,
+                ),
+                headers=self._headers,
+                trust_env=True,
+            )
         connector = aiohttp.TCPConnector(
             limit=self.max_concurrency,
             limit_per_host=self.max_concurrency,
@@ -573,6 +606,14 @@ class AxleClient:
             connector=connector,
             headers=self._headers,
         )
+
+    def _session_closed(self) -> bool:
+        """Transport-agnostic 'is session closed?' check."""
+        if self._session is None:
+            return True
+        if self._http2:
+            return bool(cast(httpx.AsyncClient, self._session).is_closed)
+        return bool(cast(aiohttp.ClientSession, self._session).closed)
 
     async def _call(
         self,
@@ -608,25 +649,47 @@ class AxleClient:
         http_method: HTTPMethod,
         data: str | None,
     ) -> str:
-        if self._session is None or self._session.closed:
-            self._session = self._get_session()
+        async with self._session_lock:
+            if self._session_closed():
+                self._session = self._get_session()
 
-        try:
-            url = f"{self.url}/{method}"
-            timeout = aiohttp.ClientTimeout(total=call_timeout_seconds)
+        url = f"{self.url}/{method}"
 
-            if http_method == HTTPMethod.GET:
-                response = await cast(aiohttp.ClientSession, self._session).get(
-                    url, timeout=timeout
+        # Gate the actual request so `max_concurrency` caps concurrent in-flight requests.
+        async with self._sem:
+            if self._http2:
+                return await self._call_attempt_httpx(
+                    cast(httpx.AsyncClient, self._session),
+                    url,
+                    call_timeout_seconds,
+                    http_method,
+                    data,
                 )
+            return await self._call_attempt_aiohttp(
+                cast(aiohttp.ClientSession, self._session),
+                url,
+                call_timeout_seconds,
+                http_method,
+                data,
+            )
+
+    async def _call_attempt_aiohttp(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        call_timeout_seconds: float,
+        http_method: HTTPMethod,
+        data: str | None,
+    ) -> str:
+        try:
+            timeout = aiohttp.ClientTimeout(total=call_timeout_seconds)
+            if http_method == HTTPMethod.GET:
+                response = await session.get(url, timeout=timeout)
             else:
                 if data is None:
                     raise ValueError(f"data parameter is required for {http_method} requests")
-                response = await cast(aiohttp.ClientSession, self._session).post(
-                    url, data=data, timeout=timeout
-                )
-
-            await self._raise_for_status(response)
+                response = await session.post(url, data=data, timeout=timeout)
+            await self._raise_for_status_aiohttp(response)
             return cast(str, await response.text())
         except aiohttp.ClientConnectionError as e:
             raise AxleIsUnavailable(self.url, str(e)) from e
@@ -639,13 +702,60 @@ class AxleClient:
                 self.url, f"client timeout: server did not respond within {call_timeout_seconds}s"
             ) from None
 
-    async def _raise_for_status(self, response: aiohttp.ClientResponse) -> None:
+    async def _call_attempt_httpx(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        call_timeout_seconds: float,
+        http_method: HTTPMethod,
+        data: str | None,
+    ) -> str:
+        timeout = httpx.Timeout(call_timeout_seconds)
+        # Retry HTTP/2 GOAWAY inline so it bypasses the outer exponential backoff.
+        last_goaway: httpx.RemoteProtocolError | None = None
+        for _ in range(_GOAWAY_RETRY_LIMIT):
+            try:
+                if http_method == HTTPMethod.GET:
+                    response = await client.get(url, timeout=timeout)
+                else:
+                    if data is None:
+                        raise ValueError(f"data parameter is required for {http_method} requests")
+                    response = await client.post(url, content=data, timeout=timeout)
+            except httpx.TimeoutException as e:
+                raise AxleIsUnavailable(
+                    self.url,
+                    f"client timeout: server did not respond within {call_timeout_seconds}s",
+                ) from e
+            except httpx.RemoteProtocolError as e:
+                if _is_graceful_goaway(e):
+                    logger.debug("HTTP/2 GOAWAY received; retrying on a fresh connection")
+                    last_goaway = e
+                    continue
+                raise AxleIsUnavailable(self.url, str(e)) from e
+            except (httpx.ConnectError, httpx.NetworkError) as e:
+                raise AxleIsUnavailable(self.url, str(e)) from e
+            except RuntimeError as e:
+                if "client has been closed" in str(e):
+                    raise AxleIsUnavailable(self.url, str(e)) from e
+                raise
+            self._raise_for_status_httpx(response)
+            return cast(str, response.text)
+        assert last_goaway is not None
+        raise AxleIsUnavailable(self.url, str(last_goaway)) from last_goaway
+
+    async def _raise_for_status_aiohttp(self, response: aiohttp.ClientResponse) -> None:
         if response.status == 200:
             return
-
         error_message = await response.text()
+        self._raise_for_status_code(response.status, error_message)
 
-        match response.status:
+    def _raise_for_status_httpx(self, response: httpx.Response) -> None:
+        if response.status_code == 200:
+            return
+        self._raise_for_status_code(response.status_code, response.text)
+
+    def _raise_for_status_code(self, status: int, error_message: str) -> None:
+        match status:
             # Retryable errors
             case 429:
                 raise AxleRateLimitedError(f"Rate limited: {error_message}")
@@ -665,16 +775,24 @@ class AxleClient:
             # Catch-all for other errors
             case 500:
                 raise AxleInternalError(f"Internal server error: {error_message}")
-            case _ if 400 <= response.status < 500:
-                raise AxleInvalidArgument(f"Client error {response.status}: {error_message}")
+            case _ if 400 <= status < 500:
+                raise AxleInvalidArgument(f"Client error {status}: {error_message}")
             case _:
-                raise AxleInternalError(f"Server error {response.status}: {error_message}")
+                raise AxleInternalError(f"Server error {status}: {error_message}")
 
     async def close(self) -> None:
         """Close the client session and cleanup resources."""
         logger.debug("Closing AXLE session")
-        if self._session is not None and not self._session.closed:
-            await self._session.close()
+        if self._session is None:
+            return
+        if self._http2:
+            session_h2 = cast(httpx.AsyncClient, self._session)
+            if not session_h2.is_closed:
+                await session_h2.aclose()
+        else:
+            session_h1 = cast(aiohttp.ClientSession, self._session)
+            if not session_h1.closed:
+                await session_h1.close()
         self._session = None
 
     async def __aenter__(self) -> "AxleClient":
@@ -688,3 +806,18 @@ class AxleClient:
 
 def _to_request(**kwargs: Any) -> JsonDict:
     return {key: value for key, value in kwargs.items() if value is not None}
+
+
+# Bound on inline GOAWAY retries
+_GOAWAY_RETRY_LIMIT: Final[int] = 3
+
+
+def _is_graceful_goaway(exc: httpx.RemoteProtocolError) -> bool:
+    """True if `exc` represents an HTTP/2 GOAWAY with NO_ERROR (graceful shutdown).
+
+    h2's `ConnectionTerminated` repr is
+    `<ConnectionTerminated error_code:0, last_stream_id:..., additional_data:...>`,
+    which httpx surfaces as the message body of `RemoteProtocolError`.
+    """
+    msg = str(exc)
+    return "ConnectionTerminated" in msg and "error_code:0" in msg

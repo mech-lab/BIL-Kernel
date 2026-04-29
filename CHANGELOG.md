@@ -10,6 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Releases]
 
+## v1.2.1 - April 29, 2026
+
+### Deprecated
+
+- `extract_theorems` has been deprecated and will no longer be updated. Please use `extract_decls` instead, which supports all declaration kinds (def, theorem, lemma, abbrev, instance, structure, etc.).
+
+### Changed
+
+- The AXLE client now uses HTTP/2 by default. We don't expect any significant performance differences from this change, but feel free to file a bug report if this is not the case. Users may set the `http2` parameter to false in the client constructor to revert back to the original HTTP/1.1 settings.
+
+### Added
+
+- Added a new option `expand_scoped_notations` to the `normalize` tool, which delaborates scoped notations into their expanded forms. See the [`normalize` documentation page](https://axle.axiommath.ai/v1/docs/tools/normalize/#available-normalizations) for details.
+
+### Fixed
+
+- Fixed a bug in the executors causing requests to hang, occasionally resulting in abnormally high latencies.
+
 ## v1.2.0 - April 15, 2026
 
 ### Added
