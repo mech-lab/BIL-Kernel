@@ -126,7 +126,7 @@ See the corresponding [Github issue](https://github.com/AxiomMath/axiom-lean-eng
 | `Kind mismatch for '{name}': candidate has {X} but expected {Y}` | Mismatch between definition kinds (e.g., `theorem` vs `def`) |
 | `Theorem '{name}' does not match expected signature: expected {X}, got {Y}` | Type of theorem has been changed |
 | `Definition '{name}' does not match expected signature: expected {X}, got {Y}` | Type or value of definition has been changed |
-| `Unsafe/partial function '{name}' detected` | Use of a disallowed function |
+| `Unsafe function '{name}' detected` | Use of an `unsafe` function |
 | `In '{name}': Axiom '{axiom}' is not in the allowed set of standard axioms` | Use of a disallowed axiom |
 | `Declaration '{name}' uses 'sorry' which is not allowed in a valid proof` | Theorem is not proven |
 | `Candidate uses banned 'open private' command` | Use of disallowed `open private` command |

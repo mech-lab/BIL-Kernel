@@ -18,6 +18,9 @@ Simplify theorem proofs by removing unnecessary tactics and cleaning up code.
     `-1` is the last theorem, `-2` is second-to-last, etc.
     If not specified, all theorems are processed.
 
+??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
+    If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
+
 ??? "`simplifications` · list[str] · List of simplifications to apply"
     If not specified, all simplifications are applied. See below for available simplifications.
 

@@ -114,6 +114,26 @@ If not specified, all theorems are processed.""",
     "cli_list_type": "int",
 }
 
+# Theorems-only toggle (for tools that can operate on all declaration kinds)
+THEOREMS_ONLY_INPUT: InputField = {
+    "name": "theorems_only",
+    "type": "checkbox",
+    "description": "Process theorems/lemmas only",
+    "details": "If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.",
+    "default": True,
+}
+
+# Theorems-only toggle for tools where non-theorem kinds are a no-op.
+# The flag still widens what `names`/`indices` resolve over, but the transform itself only
+# acts on theorems/lemmas.
+THEOREMS_ONLY_NOOP_INPUT: InputField = {
+    "name": "theorems_only",
+    "type": "checkbox",
+    "description": "Process theorems/lemmas only",
+    "details": "If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.\n\nNote: on this tool, operations on non-theorem kinds are a no-op.",
+    "default": True,
+}
+
 # Mathlib options toggle
 MATHLIB_OPTIONS_INPUT: InputField = {
     "name": "mathlib_options",
@@ -312,7 +332,7 @@ See the corresponding [Github issue](https://github.com/AxiomMath/axiom-lean-eng
 | `Kind mismatch for '{name}': candidate has {X} but expected {Y}` | Mismatch between definition kinds (e.g., `theorem` vs `def`) |
 | `Theorem '{name}' does not match expected signature: expected {X}, got {Y}` | Type of theorem has been changed |
 | `Definition '{name}' does not match expected signature: expected {X}, got {Y}` | Type or value of definition has been changed |
-| `Unsafe/partial function '{name}' detected` | Use of a disallowed function |
+| `Unsafe function '{name}' detected` | Use of an `unsafe` function |
 | `In '{name}': Axiom '{axiom}' is not in the allowed set of standard axioms` | Use of a disallowed axiom |
 | `Declaration '{name}' uses 'sorry' which is not allowed in a valid proof` | Theorem is not proven |
 | `Candidate uses banned 'open private' command` | Use of disallowed `open private` command |""",
@@ -1018,6 +1038,7 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/theorem2lemma \\
                 "default": "lemma",
                 "placeholder": "lemma",
             },
+            THEOREMS_ONLY_NOOP_INPUT,
             IGNORE_IMPORTS_INPUT,
             ENVIRONMENT_INPUT,
             TIMEOUT_INPUT,
@@ -1096,6 +1117,7 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/theorem2sorry \\
             CONTENT_INPUT,
             NAMES_INPUT,
             INDICES_INPUT,
+            THEOREMS_ONLY_INPUT,
             IGNORE_IMPORTS_INPUT,
             ENVIRONMENT_INPUT,
             TIMEOUT_INPUT,
@@ -1505,6 +1527,7 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/simplify_theorems \\
             {**CONTENT_INPUT, "placeholder": "theorem foo : 1 = 1 := by rfl <;> rfl"},
             NAMES_INPUT,
             INDICES_INPUT,
+            THEOREMS_ONLY_INPUT,
             {
                 "name": "simplifications",
                 "type": "list",
@@ -1537,7 +1560,18 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/simplify_theorems \\
     },
     "repair_proofs": {
         "title": "Repair Proofs",
-        "details": "Attempt to repair broken theorem proofs.",
+        "details": """\
+Attempt to repair broken theorem proofs. Available repairs:
+
+- `remove_extraneous_tactics` — truncate trailing tactics after the proof closes
+- `apply_terminal_tactics` — try terminal tactics in place of `sorry`
+- `replace_unsafe_tactics` — replace `native_decide` with `decide +kernel`
+- `remove_unknown_options` — strip `set_option` commands referencing an unknown option
+- `enable_autoImplicit` — prepend `set_option autoImplicit true in` when a command needs auto-implicit binders
+
+If `repairs` is omitted, all of the above run. Pass an explicit list to limit which apply. See "Available Repairs" below for details on each pass.
+
+**Note on malformed commands:** Lean's parser silently discards source it cannot parse as a command (e.g., a stray `#fake_command`). Such text is dropped during the initial parse and never reaches `repair_proofs`. The reprinted output will not contain it. This is a property of Lean's parser, not `repair_proofs`.""",
         "description": "repair broken theorem proofs",
         "cli_output": {
             "mode": "lean_stdout",
@@ -1560,6 +1594,41 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/simplify_theorems \\
             "__inputs__": True,
             "__outputs__": True,
             "Available Repairs": """\
+??? "`remove_unknown_options`"
+    Strips `set_option` references with an option name Lean doesn't recognize. Bare `set_option` commands are dropped entirely; `set_option ... in <inner>` gets unwrapped to just `<inner>` so the inner declaration / tactic / term is preserved.
+
+    **Bare command — dropped:**
+    ```lean
+    import Mathlib
+
+    set_option fake_option true
+
+    theorem foo : 1 = 1 := by rfl
+    ```
+    becomes
+    ```lean
+    import Mathlib
+
+    theorem foo : 1 = 1 := by rfl
+    ```
+
+    **`set_option ... in <decl>` — unwrapped:**
+    ```lean
+    import Mathlib
+
+    set_option fake_option true in
+    theorem foo : 1 = 1 := by rfl
+    ```
+    becomes
+    ```lean
+    import Mathlib
+
+    theorem foo : 1 = 1 := by rfl
+    ```
+
+??? "`enable_autoImplicit`"
+    When a command fails because it relies on auto-implicit binders but `autoImplicit` is disabled in the current scope, this repair prepends `set_option autoImplicit true in` to the command so it elaborates. Note that `autoImplicit` is already on by default, so this only affects code that explicitly turns it off.
+
 ??? "`remove_extraneous_tactics`"
     When a proof is already complete but has extra tactics afterward, this repair removes the extraneous tactics.
 
@@ -1664,6 +1733,8 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/repair_proofs \\
     "parse_ms": 95
   },
   "repair_stats": {
+    "remove_unknown_options": 0,
+    "enable_autoImplicit": 0,
     "remove_extraneous_tactics": 2,
     "apply_terminal_tactics": 0,
     "replace_unsafe_tactics": 0
@@ -1674,13 +1745,21 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/repair_proofs \\
             {**CONTENT_INPUT, "placeholder": "theorem foo : 1 = 1 := by sorry"},
             NAMES_INPUT,
             INDICES_INPUT,
+            THEOREMS_ONLY_INPUT,
             {
                 "name": "repairs",
                 "type": "list",
                 "description": "List of repairs to apply",
                 "details": """If not specified, all repairs are applied. See below for available repairs.""",
                 "required": False,
-                "placeholder": "remove_extraneous_tactics, apply_terminal_tactics, replace_unsafe_tactics",
+                "default": [
+                    "remove_unknown_options",
+                    "enable_autoImplicit",
+                    "remove_extraneous_tactics",
+                    "apply_terminal_tactics",
+                    "replace_unsafe_tactics",
+                ],
+                "placeholder": "remove_unknown_options, enable_autoImplicit, remove_extraneous_tactics, apply_terminal_tactics, replace_unsafe_tactics",
             },
             {
                 "name": "terminal_tactics",
@@ -1961,6 +2040,7 @@ These configuration options provide some flexibility around usage, at the cost o
             },
             NAMES_INPUT,
             INDICES_INPUT,
+            THEOREMS_ONLY_INPUT,
             {
                 "name": "include_have_body",
                 "type": "checkbox",
@@ -2063,6 +2143,7 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/have2sorry \\
             },
             NAMES_INPUT,
             INDICES_INPUT,
+            THEOREMS_ONLY_INPUT,
             IGNORE_IMPORTS_INPUT,
             ENVIRONMENT_INPUT,
             TIMEOUT_INPUT,
@@ -2103,6 +2184,8 @@ result = await axle.sorry2lemma(
     extract_errors=True,            # Optional
     include_whole_context=True,     # Optional
     reconstruct_callsite=False,     # Optional
+    merge_duplicates=False,         # Optional
+    theorems_only=True,             # Optional
     verbosity=0,                    # Optional: 0-2
 )
 print(result.content)
@@ -2169,8 +2252,16 @@ theorem multiple (n : Nat) : 1 = 1 ∧ 2 = 2 := by constructor <;> (first | exac
         },
         "inputs": [
             {**CONTENT_INPUT, "placeholder": "theorem foo : 1 = 1 := by\n  sorry"},
-            NAMES_INPUT,
-            INDICES_INPUT,
+            {
+                **NAMES_INPUT,
+                "details": NAMES_INPUT["details"]
+                + " When `theorems_only` is `false`, these select over all declarations (not just theorems).",
+            },
+            {
+                **INDICES_INPUT,
+                "details": INDICES_INPUT["details"]
+                + " When `theorems_only` is `false`, indices position over all declarations (not just theorems).",
+            },
             {
                 "name": "extract_sorries",
                 "type": "checkbox",
@@ -2199,6 +2290,14 @@ theorem multiple (n : Nat) : 1 = 1 ∧ 2 = 2 := by constructor <;> (first | exac
                 "details": "If `true`, the original `sorry` is replaced with a call to the extracted lemma. Defaults to false.",
                 "default": False,
             },
+            {
+                "name": "merge_duplicates",
+                "type": "checkbox",
+                "description": "Merge duplicate extracted lemmas (by definitional equality)",
+                "details": "If `true`, extracted lemmas within the same parent that are definitionally equal — to each other, or to the `theorem`/`lemma` they were extracted from — are merged: duplicates collapse into a single lemma that all callsites reference, and a sorry whose goal is defeq to its parent theorem/lemma is dropped rather than lifted into a restatement (e.g. a top-level `:= sorry` / `:= by sorry`). The parent-restatement check applies only to `theorem`/`lemma` parents, not `def`/`instance`/etc. Defaults to false.",
+                "default": False,
+            },
+            THEOREMS_ONLY_INPUT,
             {
                 "name": "verbosity",
                 "type": "number",
@@ -2297,6 +2396,7 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/disprove \\
                 "default": ["grind"],
                 "placeholder": "grind, aesop, rfl, simp, decide",
             },
+            THEOREMS_ONLY_NOOP_INPUT,
             IGNORE_IMPORTS_INPUT,
             ENVIRONMENT_INPUT,
             TIMEOUT_INPUT,

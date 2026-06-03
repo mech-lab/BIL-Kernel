@@ -22,6 +22,9 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
     `-1` is the last theorem, `-2` is second-to-last, etc.
     If not specified, all theorems are processed.
 
+??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
+    If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
+
 ??? "`include_have_body` · bool · default: `False` · Include proof bodies in extracted lemmas"
     If `true`, extracted lemmas include the original proof. If `false`, they use `sorry` as placeholder. Defaults to false.
 

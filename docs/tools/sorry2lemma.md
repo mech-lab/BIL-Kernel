@@ -15,12 +15,12 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
 
 ??? "`names` · list[str] · Theorem names to process"
     Optional list of theorem names to process. If not specified, all theorems are processed.
-    Names not found in the code are silently ignored.
+    Names not found in the code are silently ignored. When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`indices` · list[str] · Theorem indices to process"
     Optional list of theorem indices to process (0-based). Supports negative indices:
     `-1` is the last theorem, `-2` is second-to-last, etc.
-    If not specified, all theorems are processed.
+    If not specified, all theorems are processed. When `theorems_only` is `false`, indices position over all declarations (not just theorems).
 
 ??? "`extract_sorries` · bool · default: `True` · Lift sorries into standalone lemmas"
     If `true`, `sorry` placeholders are extracted into standalone lemmas. Defaults to true.
@@ -33,6 +33,12 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
 
 ??? "`reconstruct_callsite` · bool · default: `False` · Replace sorry with lemma call"
     If `true`, the original `sorry` is replaced with a call to the extracted lemma. Defaults to false.
+
+??? "`merge_duplicates` · bool · default: `False` · Merge duplicate extracted lemmas (by definitional equality)"
+    If `true`, extracted lemmas within the same parent that are definitionally equal — to each other, or to the `theorem`/`lemma` they were extracted from — are merged: duplicates collapse into a single lemma that all callsites reference, and a sorry whose goal is defeq to its parent theorem/lemma is dropped rather than lifted into a restatement (e.g. a top-level `:= sorry` / `:= by sorry`). The parent-restatement check applies only to `theorem`/`lemma` parents, not `def`/`instance`/etc. Defaults to false.
+
+??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
+    If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
 
 ??? "`verbosity` · float · default: `0` · Pretty-printer verbosity level (0-2)"
     0=default, 1=robust, 2=extra robust. Higher levels produce more explicit type annotations. Use when default output has ambiguity errors.
@@ -84,6 +90,8 @@ result = await axle.sorry2lemma(
     extract_errors=True,            # Optional
     include_whole_context=True,     # Optional
     reconstruct_callsite=False,     # Optional
+    merge_duplicates=False,         # Optional
+    theorems_only=True,             # Optional
     verbosity=0,                    # Optional: 0-2
 )
 print(result.content)

@@ -10,6 +10,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Releases]
 
+## v1.3.0 - June 3, 2026
+
+### Added
+
+- Added *link shortening* to the gateway. The web UI has been updated correspondingly. Try it out: [https://axle.axiommath.ai/check#r=7d70453f-813f-4d19-8de9-44793dafa835](https://axle.axiommath.ai/check#r=7d70453f-813f-4d19-8de9-44793dafa835)
+- Added Claude web, desktop, and mobile support to the [`axiom-axle-mcp`](https://pypi.org/project/axiom-axle-mcp/) MCP server via a hosted endpoint at `https://mcp.axiommath.ai/mcp`. See the [Quick Start](https://axle.axiommath.ai/v1/docs/quickstart/#mcp-server) for details. Thanks to Andrew Sutherland for suggestions on setting up this hosted instance.
+- Added three new fields to the `info` field of every response to identify the executor version your request was handled on: `_executor_commit_sha`, `_executor_docker_image_id`, and `_executor_artifact_sha256`.
+
+### Changed
+
+- Added a new option `theorems_only` (default `true`) to all tools that select over theorems/lemmas. These tools now have the ability to select over **all declaration kinds**: `theorem2lemma`, `theorem2sorry`, `simplify_theorems`, `repair_proofs`, `have2lemma`, `have2sorry`, `sorry2lemma`, `disprove`:
+
+    - To use this feature, set `theorems_only` to `false`. For backwards compatibility (default), keep `theorems_only` set to `true`.
+    - You can now sorry out any declaration body, simplify/repair any declaration containing a proof, and extract lemmas from any `sorry` locations and any `have` statement locations in any declarations, including definitions, opaques, instances, etc.
+    - For `theorem2lemma` and `disprove`, the new setting is a no-op on non-theorem kinds.
+    - Note that the value of `theorems_only` affects what the `names` and `indices` fields select over. When `theorems_only` is `false`, names and indices refer to **all** declarations, not just theorem kinds.
+
+- Reworked `repair_proofs` (the first of several planned changes):
+
+    - Added two new passes to `repair_proofs`: `remove_unknown_options`, which strips unknown options both at the command-level and within proofs/terms, and `enable_autoImplicit`, which restores the `autoImplicit` option at the beginning of a theorem if an unknown identifier error occurs in a theorem's type signature.
+    - Added command-level re-elaboration to `repair_proofs`, allowing repairs to stack (for example, when applying terminal tactics reveals another error to fix).
+    - `replace_unsafe_tactics` now warns the user when replacing `native_decide` with `decide +kernel` fails. The tactic location is now left untouched.
+    - `apply_terminal_tactics` now warns when no terminal tactics could be successfully applied at a given location in `repair_proofs`.
+    - Fixed a bug in `apply_terminal_tactics` allowing malformed proofs with metavariables to be counted as successes in `repair_proofs`.
+
+- `verify_proof` now permits `partial def` and `opaque`. These checks were overly strict previously and do not raise soundness concerns.
+- `merge` now deduplicates other declaration kinds: axioms, opaques, inductives, classes, structures, etc. Previously, only theorems and definitions were eligible for deduplication.
+- `extract_decls` now names anonymous declarations (examples, anonymous instances) by their start position, line then column (e.g. `_example_12_0`), rather than a running counter (e.g. `_example_0`), so the placeholder is stable and remains unique across a file even when several share a line.
+- Added the `merge_duplicates` (default `false`) option to `sorry2lemma`, which merges extracted lemmas that are duplicates (either with other lemmas, or to the existing top-level theorem/lemma from which they are extracted) by definitional equality into a single lemma with all callsites pointing at it. Existing behavior can be retained with the default setting `merge_duplicates=false`.
+
+
+### Fixed
+
+- Added faster, more graceful retries on certain classes of connection errors. Minor change.
+
+
 ## v1.2.1 - April 29, 2026
 
 ### Deprecated

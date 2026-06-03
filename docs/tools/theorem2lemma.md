@@ -21,6 +21,11 @@ Convert between `theorem` and `lemma` declaration keywords.
 ??? "`target` · str · default: `lemma` · Target keyword (lemma or theorem)"
     The keyword to convert to. Use `lemma` or `theorem`. Defaults to `lemma`.
 
+??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
+    If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
+
+    Note: on this tool, operations on non-theorem kinds are a no-op.
+
 ??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
     Controls import statement handling:
 

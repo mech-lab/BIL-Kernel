@@ -281,6 +281,7 @@ class AxleClient:
         environment: str,
         names: list[str] | None = None,
         indices: list[int] | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> Theorem2SorryResponse:
@@ -292,6 +293,7 @@ class AxleClient:
                     content=content,
                     names=names,
                     indices=indices,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -328,6 +330,7 @@ class AxleClient:
         names: list[str] | None = None,
         indices: list[int] | None = None,
         target: str | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> Theorem2LemmaResponse:
@@ -340,6 +343,7 @@ class AxleClient:
                     names=names,
                     indices=indices,
                     target=target,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -376,6 +380,7 @@ class AxleClient:
         names: list[str] | None = None,
         indices: list[int] | None = None,
         simplifications: list[str] | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> SimplifyTheoremsResponse:
@@ -388,6 +393,7 @@ class AxleClient:
                     names=names,
                     indices=indices,
                     simplifications=simplifications,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -403,6 +409,7 @@ class AxleClient:
         indices: list[int] | None = None,
         repairs: list[str] | None = None,
         terminal_tactics: list[str] | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> RepairProofsResponse:
@@ -416,6 +423,7 @@ class AxleClient:
                     indices=indices,
                     repairs=repairs,
                     terminal_tactics=terminal_tactics,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -433,6 +441,7 @@ class AxleClient:
         include_whole_context: bool | None = None,
         reconstruct_callsite: bool | None = None,
         verbosity: int | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> Have2LemmaResponse:
@@ -448,6 +457,7 @@ class AxleClient:
                     include_whole_context=include_whole_context,
                     reconstruct_callsite=reconstruct_callsite,
                     verbosity=verbosity,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -461,6 +471,7 @@ class AxleClient:
         environment: str,
         names: list[str] | None = None,
         indices: list[int] | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> Have2SorryResponse:
@@ -472,6 +483,7 @@ class AxleClient:
                     content=content,
                     names=names,
                     indices=indices,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -489,6 +501,8 @@ class AxleClient:
         extract_errors: bool | None = None,
         include_whole_context: bool | None = None,
         reconstruct_callsite: bool | None = None,
+        merge_duplicates: bool | None = None,
+        theorems_only: bool | None = None,
         verbosity: int | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
@@ -505,6 +519,8 @@ class AxleClient:
                     extract_errors=extract_errors,
                     include_whole_context=include_whole_context,
                     reconstruct_callsite=reconstruct_callsite,
+                    merge_duplicates=merge_duplicates,
+                    theorems_only=theorems_only,
                     verbosity=verbosity,
                     ignore_imports=ignore_imports,
                     environment=environment,
@@ -520,6 +536,7 @@ class AxleClient:
         names: list[str] | None = None,
         indices: list[int] | None = None,
         terminal_tactics: list[str] | None = None,
+        theorems_only: bool | None = None,
         ignore_imports: bool | None = None,
         timeout_seconds: float | None = None,
     ) -> DisproveResponse:
@@ -532,6 +549,7 @@ class AxleClient:
                     names=names,
                     indices=indices,
                     terminal_tactics=terminal_tactics,
+                    theorems_only=theorems_only,
                     ignore_imports=ignore_imports,
                     environment=environment,
                     timeout_seconds=timeout_seconds,
@@ -615,6 +633,29 @@ class AxleClient:
             return bool(cast(httpx.AsyncClient, self._session).is_closed)
         return bool(cast(aiohttp.ClientSession, self._session).closed)
 
+    async def _rotate_session(self, stale: aiohttp.ClientSession | httpx.AsyncClient) -> None:
+        """Drop the cached session if it is the one that just failed, so the
+        next attempt rebuilds a fresh one."""
+        async with self._session_lock:
+            if self._session is stale:
+                self._session = None
+        try:
+            if isinstance(stale, httpx.AsyncClient):
+                await stale.aclose()
+            else:
+                await stale.close()
+        except Exception:
+            logger.debug("error closing stale session", exc_info=True)
+
+    async def _rotate_and_refetch_httpx(self, stale: httpx.AsyncClient) -> httpx.AsyncClient:
+        """Rotate the session on a failed httpx client and return a fresh one
+        for the caller's next inline attempt."""
+        await self._rotate_session(stale)
+        async with self._session_lock:
+            if self._session_closed():
+                self._session = self._get_session()
+            return cast(httpx.AsyncClient, self._session)
+
     async def _call(
         self,
         method: str,
@@ -692,10 +733,10 @@ class AxleClient:
             await self._raise_for_status_aiohttp(response)
             return cast(str, await response.text())
         except aiohttp.ClientConnectionError as e:
-            raise AxleIsUnavailable(self.url, str(e)) from e
+            raise AxleIsUnavailable(self.url, _exc_msg(e)) from e
         except RuntimeError as e:
             if "Connection closed." in str(e) or "Session is closed" in str(e):
-                raise AxleIsUnavailable(self.url, str(e)) from e
+                raise AxleIsUnavailable(self.url, _exc_msg(e)) from e
             raise
         except TimeoutError:
             raise AxleIsUnavailable(
@@ -728,20 +769,34 @@ class AxleClient:
                 ) from e
             except httpx.RemoteProtocolError as e:
                 if _is_graceful_goaway(e):
-                    logger.debug("HTTP/2 GOAWAY received; retrying on a fresh connection")
+                    # Evict the dead connection from the pool
+                    logger.debug("HTTP/2 GOAWAY received; rotating client")
+                    client = await self._rotate_and_refetch_httpx(client)
                     last_goaway = e
                     continue
-                raise AxleIsUnavailable(self.url, str(e)) from e
+                raise AxleIsUnavailable(self.url, _exc_msg(e)) from e
+            except httpx.LocalProtocolError as e:
+                # httpcore leaks h2 stream slots on aborted streams.
+                # Rotate the cached session and let outer tenacity retry on
+                # a fresh client.
+                if not _is_stream_limit_error(e):
+                    raise
+                logger.warning(
+                    "HTTP/2 stream limit reached on cached connection; rotating client. %s",
+                    e,
+                )
+                await self._rotate_session(client)
+                raise AxleIsUnavailable(self.url, _exc_msg(e)) from e
             except (httpx.ConnectError, httpx.NetworkError) as e:
-                raise AxleIsUnavailable(self.url, str(e)) from e
+                raise AxleIsUnavailable(self.url, _exc_msg(e)) from e
             except RuntimeError as e:
                 if "client has been closed" in str(e):
-                    raise AxleIsUnavailable(self.url, str(e)) from e
+                    raise AxleIsUnavailable(self.url, _exc_msg(e)) from e
                 raise
             self._raise_for_status_httpx(response)
             return cast(str, response.text)
         assert last_goaway is not None
-        raise AxleIsUnavailable(self.url, str(last_goaway)) from last_goaway
+        raise AxleIsUnavailable(self.url, _exc_msg(last_goaway)) from last_goaway
 
     async def _raise_for_status_aiohttp(self, response: aiohttp.ClientResponse) -> None:
         if response.status == 200:
@@ -812,6 +867,12 @@ def _to_request(**kwargs: Any) -> JsonDict:
 _GOAWAY_RETRY_LIMIT: Final[int] = 3
 
 
+def _exc_msg(exc: BaseException) -> str:
+    """str(exc) if it carries info, otherwise the exception type."""
+    msg = str(exc)
+    return msg if msg else type(exc).__name__
+
+
 def _is_graceful_goaway(exc: httpx.RemoteProtocolError) -> bool:
     """True if `exc` represents an HTTP/2 GOAWAY with NO_ERROR (graceful shutdown).
 
@@ -821,3 +882,13 @@ def _is_graceful_goaway(exc: httpx.RemoteProtocolError) -> bool:
     """
     msg = str(exc)
     return "ConnectionTerminated" in msg and "error_code:0" in msg
+
+
+def _is_stream_limit_error(exc: httpx.LocalProtocolError) -> bool:
+    """True if `exc` is the h2 stream-limit cliff caused by httpcore's stream-
+    slot leak on aborted streams.
+
+    h2 raises `TooManyStreamsError("Max outbound streams is N, M open")` which
+    httpx surfaces as `LocalProtocolError`.
+    """
+    return "Max outbound streams" in str(exc)

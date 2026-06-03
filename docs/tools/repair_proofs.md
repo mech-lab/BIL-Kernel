@@ -1,6 +1,16 @@
 # repair_proofs
 
-Attempt to repair broken theorem proofs.
+Attempt to repair broken theorem proofs. Available repairs:
+
+- `remove_extraneous_tactics` — truncate trailing tactics after the proof closes
+- `apply_terminal_tactics` — try terminal tactics in place of `sorry`
+- `replace_unsafe_tactics` — replace `native_decide` with `decide +kernel`
+- `remove_unknown_options` — strip `set_option` commands referencing an unknown option
+- `enable_autoImplicit` — prepend `set_option autoImplicit true in` when a command needs auto-implicit binders
+
+If `repairs` is omitted, all of the above run. Pass an explicit list to limit which apply. See "Available Repairs" below for details on each pass.
+
+**Note on malformed commands:** Lean's parser silently discards source it cannot parse as a command (e.g., a stray `#fake_command`). Such text is dropped during the initial parse and never reaches `repair_proofs`. The reprinted output will not contain it. This is a property of Lean's parser, not `repair_proofs`.
 
 [Try this example in the web UI](https://axle.axiommath.ai/repair_proofs#data=eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBwYXJhbGxlbF9nb2Fsc19leHRyYW5lb3VzXG4gICh5IDog4oSCKSAoeCA6IOKEnSkgKGggOiB4IOKJpSAyKSA6XG4gIDcgKiAoMyAqIHkgKyAyKSA9IDIxICogeSArIDE0XG4gIOKIpyB4XjIg4omlIDFcbiAgOj0gYnlcbiAgY29uc3RydWN0b3JcbiAgYWxsX2dvYWxzIHNvcnJ5XG4gIGdyaW5kXG4gIHJmbFxuICBzb3JyeSIsImlnbm9yZV9pbXBvcnRzIjpmYWxzZSwiZW52aXJvbm1lbnQiOiJsZWFuLTQuMjcuMCIsInRpbWVvdXRfc2Vjb25kcyI6MTIwfQ%3D%3D)
 
@@ -24,7 +34,10 @@ Attempt to repair broken theorem proofs.
     `-1` is the last theorem, `-2` is second-to-last, etc.
     If not specified, all theorems are processed.
 
-??? "`repairs` · list[str] · List of repairs to apply"
+??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
+    If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
+
+??? "`repairs` · list[str] · default: `['remove_unknown_options', 'enable_autoImplicit', 'remove_extraneous_tactics', 'apply_terminal_tactics', 'replace_unsafe_tactics']` · List of repairs to apply"
     If not specified, all repairs are applied. See below for available repairs.
 
 ??? "`terminal_tactics` · list[str] · default: `['grind']` · Tactics to try for closing goals"
@@ -70,6 +83,41 @@ Attempt to repair broken theorem proofs.
 
 
 ## Available Repairs
+
+??? "`remove_unknown_options`"
+    Strips `set_option` references with an option name Lean doesn't recognize. Bare `set_option` commands are dropped entirely; `set_option ... in <inner>` gets unwrapped to just `<inner>` so the inner declaration / tactic / term is preserved.
+
+    **Bare command — dropped:**
+    ```lean
+    import Mathlib
+
+    set_option fake_option true
+
+    theorem foo : 1 = 1 := by rfl
+    ```
+    becomes
+    ```lean
+    import Mathlib
+
+    theorem foo : 1 = 1 := by rfl
+    ```
+
+    **`set_option ... in <decl>` — unwrapped:**
+    ```lean
+    import Mathlib
+
+    set_option fake_option true in
+    theorem foo : 1 = 1 := by rfl
+    ```
+    becomes
+    ```lean
+    import Mathlib
+
+    theorem foo : 1 = 1 := by rfl
+    ```
+
+??? "`enable_autoImplicit`"
+    When a command fails because it relies on auto-implicit binders but `autoImplicit` is disabled in the current scope, this repair prepends `set_option autoImplicit true in` to the command so it elaborates. Note that `autoImplicit` is already on by default, so this only affects code that explicitly turns it off.
 
 ??? "`remove_extraneous_tactics`"
     When a proof is already complete but has extra tactics afterward, this repair removes the extraneous tactics.
@@ -196,6 +244,8 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/repair_proofs \
     "parse_ms": 95
   },
   "repair_stats": {
+    "remove_unknown_options": 0,
+    "enable_autoImplicit": 0,
     "remove_extraneous_tactics": 2,
     "apply_terminal_tactics": 0,
     "replace_unsafe_tactics": 0

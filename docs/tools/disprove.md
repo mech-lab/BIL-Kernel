@@ -25,6 +25,11 @@ This tool is partially powered by [Plausible](https://github.com/leanprover-comm
 ??? "`terminal_tactics` · list[str] · default: `['grind']` · Tactics to try when attempting to disprove"
     Tactics tried in order to prove the negation. `grind` often works for false statements. Defaults to 'grind'.
 
+??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
+    If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
+
+    Note: on this tool, operations on non-theorem kinds are a no-op.
+
 ??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
     Controls import statement handling:
 

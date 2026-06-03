@@ -7,6 +7,20 @@ Homepage: https://axle.axiommath.ai/
 ## Recent Announcements
 
 <details open>
+<summary><strong>June 3, 2026 - v1.3.0</strong></summary>
+
+Support for all declaration kinds, a reworked `repair_proofs`, link shortening, and broader MCP support. See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details and other changes.
+
+### Highlights:
+- **All declaration kinds:** A new `theorems_only` option lets most tools select over **every** declaration kind — definitions, opaques, instances, and more — not just theorems and lemmas. Set it to `false` to opt in.
+- **Reworked `repair_proofs`:** New passes, stacked repairs, and clearer messages for failed repairs.
+- **Tool updates:** Changes and new options for `verify_proof`, `merge`, `extract_decls`, and `sorry2lemma`.
+- **Link shortening:** Short, shareable links to requests.
+- **MCP web support:** The [`axiom-axle-mcp`](https://pypi.org/project/axiom-axle-mcp/) server now works with Claude web, desktop, and mobile.
+
+</details>
+
+<details>
 <summary><strong>April 15, 2026 - v1.2.0</strong></summary>
 
 New `extract_decls` tool for extracting all declaration kinds, and corresponding updates to `extract_theorems`. Users using `extract_theorems` (which will be deprecated in a future update) should migrate to `extract_decls`. See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details.
@@ -27,6 +41,17 @@ See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details an
 
 </details>
 
+[Past announcements](#past-announcements)
+
+## Documentation
+
+- [Installation Guide](docs/installation.md)
+- [Python API Reference](docs/python-api.md)
+- [CLI Reference](docs/cli-reference.md)
+- [Examples](examples/)
+
+## Past Announcements
+
 <details>
 <summary><strong>April 1, 2026 - v1.1.0</strong></summary>
 
@@ -43,17 +68,6 @@ See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details an
 See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details and other changes.
 
 </details>
-
-[Past announcements](#past-announcements)
-
-## Documentation
-
-- [Installation Guide](docs/installation.md)
-- [Python API Reference](docs/python-api.md)
-- [CLI Reference](docs/cli-reference.md)
-- [Examples](examples/)
-
-## Past Announcements
 
 <details>
 <summary><strong>March 11, 2026 - v1.0.1</strong></summary>
