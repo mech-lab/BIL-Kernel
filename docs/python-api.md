@@ -13,7 +13,9 @@ from axle import AxleClient
 async def main():
     async with AxleClient() as client:
         result = await client.check(content="import Mathlib\ndef x := 1", environment="lean-4.28.0")
-        print(f"Valid: {result.okay}")
+        # okay means it compiled; failed_declarations catches sorry, disallowed axioms, etc. that leave okay true.
+        print(f"Compiles: {result.okay}")
+        print(f"Valid proof: {result.okay and not result.failed_declarations}")
 
 asyncio.run(main())
 ```
@@ -45,6 +47,7 @@ from axle.exceptions import (
     AxleForbiddenError,
     AxleNotFoundError,
     AxleConflictError,
+    AxleBrowserLoginRequiredError,
 )
 
 try:
@@ -68,6 +71,7 @@ except AxleRuntimeError as e:
 | `AxleNotFoundError` | 404 | Resource not found | Check the endpoint or resource ID |
 | `AxleConflictError` | 409 | Request conflicts with current state | Resolve the conflict |
 | `AxleInternalError` | 500 | Server bug | [Report it](https://github.com/AxiomMath/axiom-lean-engine/issues) |
+| `AxleBrowserLoginRequiredError` | 302 | Endpoint is gated behind interactive browser sign-in | Access via browser, or use an endpoint intended for CLI access |
 | `AxleRuntimeError` | — | Operation couldn't complete (timeout, resource limits) | Retry or adjust parameters |
 
 ### Automatic Retries

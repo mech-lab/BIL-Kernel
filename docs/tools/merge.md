@@ -19,11 +19,11 @@ Combine multiple Lean files into a single file.
 ??? "`include_alts_as_comments` · bool · default: `False` · Preserve alternate versions as comments"
     When deduplicating, preserves all versions of a merged declaration as comments for reference. Defaults to false.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -39,7 +39,7 @@ Combine multiple Lean files into a single file.
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from merge tool"
     Messages from the merge tool with `errors`, `warnings`, and `infos` lists.

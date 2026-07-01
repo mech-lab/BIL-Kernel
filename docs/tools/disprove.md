@@ -16,11 +16,13 @@ This tool is partially powered by [Plausible](https://github.com/leanprover-comm
 ??? "`names` · list[str] · Theorem names to process"
     Optional list of theorem names to process. If not specified, all theorems are processed.
     Names not found in the code are silently ignored.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`indices` · list[str] · Theorem indices to process"
     Optional list of theorem indices to process (0-based). Supports negative indices:
     `-1` is the last theorem, `-2` is second-to-last, etc.
     If not specified, all theorems are processed.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`terminal_tactics` · list[str] · default: `['grind']` · Tactics to try when attempting to disprove"
     Tactics tried in order to prove the negation. `grind` often works for false statements. Defaults to 'grind'.
@@ -30,11 +32,11 @@ This tool is partially powered by [Plausible](https://github.com/leanprover-comm
 
     Note: on this tool, operations on non-theorem kinds are a no-op.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -53,7 +55,7 @@ This tool is partially powered by [Plausible](https://github.com/leanprover-comm
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from disprove tool"
     Messages from the disprove tool with `errors`, `warnings`, and `infos` lists.
@@ -61,6 +63,9 @@ This tool is partially powered by [Plausible](https://github.com/leanprover-comm
 
 ??? "`results` · dict · Map from theorem name to disprove result"
     Each theorem maps to a string indicating the outcome of the disprove attempt.
+
+??? "`negated` · dict · Map from theorem name to negated goal"
+    Each theorem maps to the negated goal type that was attempted (the statement whose proof would disprove the theorem).
 
 ??? "`disproved_theorems` · list · List of theorems that were disproved"
     List of theorems that were disproved
@@ -76,10 +81,11 @@ result = await axle.disprove(
     content=lean_code,
     environment="lean-4.28.0",
     names=["conjecture1", "conjecture2"],  # Optional
-    ignore_imports=False,                   # Optional
+    ignore_imports=True,                   # Optional
 )
 print(result.disproved_theorems)  # ["conjecture2"]
 print(result.results)  # Per-theorem results
+print(result.negated)  # Per-theorem negated goals
 print(result.content)  # The processed Lean code
 ```
 
@@ -121,8 +127,12 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/disprove \
     "infos": []
   },
   "results": {
-    "solid_fact": "Disprove: failed to prove negation. Remaining goal: `1 = 1`\n",
+    "solid_fact": "Disprove: failed to prove negation.",
     "bold_claim": "Disprove: goal is false! Proof of negation by plausible.\n\n===================\nFound a counter-example!\nissue: 2 = 3 does not hold\n(0 shrinks)\n-------------------\n"
+  },
+  "negated": {
+    "solid_fact": "¬1 = 1",
+    "bold_claim": "¬2 = 3"
   },
   "disproved_theorems": ["bold_claim"],
   "timings": {

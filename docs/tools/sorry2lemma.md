@@ -15,12 +15,14 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
 
 ??? "`names` · list[str] · Theorem names to process"
     Optional list of theorem names to process. If not specified, all theorems are processed.
-    Names not found in the code are silently ignored. When `theorems_only` is `false`, these select over all declarations (not just theorems).
+    Names not found in the code are silently ignored.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`indices` · list[str] · Theorem indices to process"
     Optional list of theorem indices to process (0-based). Supports negative indices:
     `-1` is the last theorem, `-2` is second-to-last, etc.
-    If not specified, all theorems are processed. When `theorems_only` is `false`, indices position over all declarations (not just theorems).
+    If not specified, all theorems are processed.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`extract_sorries` · bool · default: `True` · Lift sorries into standalone lemmas"
     If `true`, `sorry` placeholders are extracted into standalone lemmas. Defaults to true.
@@ -35,7 +37,7 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
     If `true`, the original `sorry` is replaced with a call to the extracted lemma. Defaults to false.
 
 ??? "`merge_duplicates` · bool · default: `False` · Merge duplicate extracted lemmas (by definitional equality)"
-    If `true`, extracted lemmas within the same parent that are definitionally equal — to each other, or to the `theorem`/`lemma` they were extracted from — are merged: duplicates collapse into a single lemma that all callsites reference, and a sorry whose goal is defeq to its parent theorem/lemma is dropped rather than lifted into a restatement (e.g. a top-level `:= sorry` / `:= by sorry`). The parent-restatement check applies only to `theorem`/`lemma` parents, not `def`/`instance`/etc. Defaults to false.
+    If `true`, extracted lemmas within the same parent that are definitionally equal — to each other, or to the `theorem`/`lemma` they were extracted from — are merged: duplicates collapse into a single lemma that all callsites reference, and a sorry whose goal is definitionally equal to its parent theorem/lemma is dropped rather than lifted into a restatement (e.g. a top-level `:= sorry` / `:= by sorry`). The parent-restatement check applies only to `theorem`/`lemma` parents, not `def`/`instance`/etc. Defaults to false.
 
 ??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
     If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
@@ -43,11 +45,11 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
 ??? "`verbosity` · float · default: `0` · Pretty-printer verbosity level (0-2)"
     0=default, 1=robust, 2=extra robust. Higher levels produce more explicit type annotations. Use when default output has ambiguity errors.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -63,7 +65,7 @@ This tool is partially powered by [`extract_goal`](https://leanprover-community.
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from sorry2lemma tool"
     Messages from the sorry2lemma tool with `errors`, `warnings`, and `infos` lists.

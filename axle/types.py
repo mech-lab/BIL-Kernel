@@ -53,12 +53,16 @@ class Document:
     signature: str
     type: str
     type_hash: int
+    type_depth: int
+    term_depth: int
     is_sorry: bool
     index: int
     line_pos: int
     end_line_pos: int
     proof_length: int
     tactic_counts: dict[str, int]
+    wall_ms: int
+    heartbeats: int
     local_type_dependencies: list[str]
     local_value_dependencies: list[str]
     external_type_dependencies: list[str]
@@ -79,12 +83,16 @@ class Document:
             signature=response.get("signature", ""),
             type=response.get("type", ""),
             type_hash=response.get("type_hash", 0),
+            type_depth=response.get("type_depth", 0),
+            term_depth=response.get("term_depth", 0),
             is_sorry=response.get("is_sorry", False),
             index=response.get("index", 0),
             line_pos=response.get("line_pos", 0),
             end_line_pos=response.get("end_line_pos", 0),
             proof_length=response.get("proof_length", 0),
             tactic_counts=response.get("tactic_counts", {}),
+            wall_ms=response.get("wall_ms", 0),
+            heartbeats=response.get("heartbeats", 0),
             local_type_dependencies=response.get("local_type_dependencies", []),
             local_value_dependencies=response.get("local_value_dependencies", []),
             external_type_dependencies=response.get("external_type_dependencies", []),
@@ -352,6 +360,7 @@ class DisproveResponse:
     lean_messages: Messages
     tool_messages: Messages
     results: dict[str, str]
+    negated: dict[str, str]
     disproved_theorems: list[str]
     timings: dict[str, int]
     info: dict | None
@@ -363,6 +372,7 @@ class DisproveResponse:
             lean_messages=Messages.from_response(response.get("lean_messages", {})),
             tool_messages=Messages.from_response(response.get("tool_messages", {})),
             results=response.get("results", {}),
+            negated=response.get("negated", {}),
             disproved_theorems=response.get("disproved_theorems", []),
             timings=response.get("timings", {}),
             info=response.get("info"),

@@ -48,9 +48,10 @@ theorem another : 2 = 2 := rfl
                     f"  Dependencies: {doc.local_type_dependencies + doc.local_value_dependencies}"
                 )
 
-                # Check if the extracted code is valid
+                # okay means it compiled; failed_declarations catches sorry, disallowed axioms, etc. that leave okay true.
                 check_result = await client.check(content=doc.content, environment="lean-4.28.0")
-                status = "VALID" if check_result.okay else "INVALID"
+                valid = check_result.okay and not check_result.failed_declarations
+                status = "VALID" if valid else "INVALID"
                 print(f"  Status: {status}")
                 print()
     except AxleApiError as e:

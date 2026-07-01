@@ -7,6 +7,26 @@ Homepage: https://axle.axiommath.ai/
 ## Recent Announcements
 
 <details open>
+<summary><strong>July 1, 2026 - v1.4.0</strong></summary>
+
+This update comes with two notable changes and a variety of additional features:
+
+- **`ignore_imports` now defaults to `true`** — on an import mismatch, AXLE substitutes the default header and reuses the cached environment.
+- In turn, **`ignore_imports=false` no longer errors: it now processes your imports as written**. However, note that this is much slower and may cause issues if a dependency is missing. See [Import Mismatches](https://axle.axiommath.ai/v1/docs/troubleshooting/#import-mismatches).
+- **Reworked `okay` and `tool_messages`** — `check` now reports `sorry`/axiom/unsafe findings as warnings (not errors), and `repair_proofs` reports failed repairs as errors. See [Interpreting the `okay` field](https://axle.axiommath.ai/v1/docs/troubleshooting/#interpreting-the-okay-field).
+
+Also: opaque support in `merge`/`extract_decls`, a `disprove` fix, and Lean 4.30/4.31. See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for more details.
+
+</details>
+
+<details open>
+<summary><strong>June 24, 2026 - 📣 AXLE @ ICML 2026</strong></summary>
+
+We're presenting AXLE at the **3rd AI for Math Workshop** at **ICML 2026** in Seoul, as a contributed talk. Come find our poster and say hi! Read the technical report on [arXiv](https://arxiv.org/abs/2606.26442).
+
+</details>
+
+<details>
 <summary><strong>June 3, 2026 - v1.3.0</strong></summary>
 
 Support for all declaration kinds, a reworked `repair_proofs`, link shortening, and broader MCP support. See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details and other changes.
@@ -45,6 +65,7 @@ See the [changelog](https://axle.axiommath.ai/v1/docs/changelog/) for details an
 
 ## Documentation
 
+- [Technical report (arXiv)](https://arxiv.org/abs/2606.26442)
 - [Installation Guide](docs/installation.md)
 - [Python API Reference](docs/python-api.md)
 - [CLI Reference](docs/cli-reference.md)

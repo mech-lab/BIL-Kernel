@@ -3,6 +3,7 @@
 from axle.client import AxleClient
 from axle.exceptions import (
     AxleApiError,
+    AxleBrowserLoginRequiredError,
     AxleConflictError,
     AxleForbiddenError,
     AxleInternalError,
@@ -40,6 +41,7 @@ __all__ = [
     "AxleClient",
     # Exceptions
     "AxleApiError",
+    "AxleBrowserLoginRequiredError",
     "AxleConflictError",
     "AxleForbiddenError",
     "AxleInternalError",

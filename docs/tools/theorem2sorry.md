@@ -12,20 +12,22 @@ Strip proofs from theorems, replacing them with `sorry`.
 ??? "`names` · list[str] · Theorem names to process"
     Optional list of theorem names to process. If not specified, all theorems are processed.
     Names not found in the code are silently ignored.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`indices` · list[str] · Theorem indices to process"
     Optional list of theorem indices to process (0-based). Supports negative indices:
     `-1` is the last theorem, `-2` is second-to-last, etc.
     If not specified, all theorems are processed.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
     If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -41,7 +43,7 @@ Strip proofs from theorems, replacing them with `sorry`.
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from theorem2sorry tool"
     Messages from the theorem2sorry tool with `errors`, `warnings`, and `infos` lists.

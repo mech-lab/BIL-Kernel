@@ -1,6 +1,8 @@
 # check
 
-Evaluate Lean code and collect all messages (errors, warnings, and info). Use this to check if code is valid without verification against a formal statement, or to get the output of `#check` / `#eval` statements.
+Evaluate Lean code and collect all messages (errors, warnings, and info). Use this to check if code compiles without verification against a formal statement, or to get the output of `#check` / `#eval` statements.
+
+> **Looking to confirm a proof?** `check` reports compilation only — its `okay` field stays `true` even when a declaration uses `sorry` or a disallowed axiom. If you want a single pass/fail for "is this a complete, valid proof of a given statement," use [`verify_proof`](verify_proof.md) instead, which folds those failures into `okay`.
 
 [Try this example in the web UI](https://axle.axiommath.ai/check#data=eyJjb250ZW50IjoiI2NoZWNrIE5hdFxuI2NoZWNrIExpc3RcbiNldmFsIDEgKyAxIiwibWF0aGxpYl9vcHRpb25zIjpmYWxzZSwiaWdub3JlX2ltcG9ydHMiOnRydWUsImVudmlyb25tZW50IjoibGVhbi00LjI3LjAiLCJ0aW1lb3V0X3NlY29uZHMiOjEyMH0%3D)
 
@@ -16,11 +18,11 @@ For interactive compilation feedback without an API, try the [Lean 4 Web Playgro
 ??? "`mathlib_options` · bool · default: `False` · Enable Mathlib options"
     If true, enables conventional Mathlib options. This toggle sets `linter.mathlibStandardSet` to true, `autoImplicit` to false, `relaxedAutoImplicit` to false, and `pp.unicode.fun` to true.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -34,22 +36,25 @@ For interactive compilation feedback without an API, try the [Lean 4 Web Playgro
 
 ## Output Fields
 
-??? "`okay` · bool · True if the Lean code is valid"
+??? "`okay` · bool · True if the Lean code compiles"
     Returns `true` if the code compiles without errors. Warnings don't affect this value.
+
+    This only reflects compilation. It does **not** mean the code is a complete, valid proof: a declaration that uses `sorry`, disallowed axioms, or unsafe definitions still compiles and leaves `okay` as `true`. Those findings are reported in `tool_messages.warnings` (with the offending names in `failed_declarations`). If you need to know whether the input is a real proof, also check that `failed_declarations` is empty, or better yet, use [`verify_proof`](verify_proof.md).
 
 ??? "`content` · string · Processed Lean code"
     The Lean code that was actually processed. May differ from input if `ignore_imports=true` caused header injection.
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from check tool"
     Messages from the check tool with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate tool-specific issues (not Lean compilation errors).
+
+    Validation findings — uses of `sorry`, disallowed axioms, or unsafe definitions — are reported as warnings here. Use [`verify_proof`](verify_proof.md) to treat them as errors.
 
 ??? "`failed_declarations` · list · Declaration names that failed validation"
-    List of declaration names that have compilation or validation errors.
+    List of declaration names that have compilation or validation errors. These are declarations that do not compile, use `sorry`, use disallowed axioms, etc. A file-level validation finding (e.g. use of `open private`) marks every declaration in the file as failed.
 
 ??? "`timings` · dict · Execution timing breakdown"
     Timing information in milliseconds for various stages of processing.
@@ -62,11 +67,12 @@ result = await axle.check(
     content="import Mathlib\n#eval 2+2",
     environment="lean-4.28.0",
     mathlib_options=False,     # Optional
-    ignore_imports=False,     # Optional
+    ignore_imports=True,     # Optional
     timeout_seconds=120,      # Optional
 )
 
-print(result.okay)  # True if code is valid
+print(result.okay)  # True if code compiles
+print(result.okay and not result.failed_declarations)  # True if code compiles AND contains only complete, valid proofs
 print(result.content)  # The processed Lean code
 print(result.lean_messages.infos)  # ["4\n"]
 ```

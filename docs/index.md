@@ -45,6 +45,7 @@ See tools documentation for detailed parameters and response fields.
 
 ## Links
 
+- [Technical report (arXiv)](https://arxiv.org/abs/2606.26442)
 - [Installation Guide](installation.md)
 - [Quick Start Tutorial](quickstart.md)
 - [Python API Reference](python-api.md)

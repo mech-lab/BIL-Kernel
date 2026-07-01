@@ -29,7 +29,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: ['--check-filenames', '--check-hidden', '--ignore-words-list=nd']
+        args: ['--check-filenames', '--check-hidden', '--ignore-words-list=nd,fro']
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.16.1

@@ -6,13 +6,14 @@ Attempt to repair broken theorem proofs. Available repairs:
 - `apply_terminal_tactics` — try terminal tactics in place of `sorry`
 - `replace_unsafe_tactics` — replace `native_decide` with `decide +kernel`
 - `remove_unknown_options` — strip `set_option` commands referencing an unknown option
-- `enable_autoImplicit` — prepend `set_option autoImplicit true in` when a command needs auto-implicit binders
+- `enable_autoImplicit` — set `autoImplicit true` when a command needs auto-implicit binders
+- `relax_defeq_transparency` — set `backward.isDefEq.respectTransparency false` when a command fails due to improper reducibility/transparency settings for implicit arguments (Lean ≥ 4.29 only)
 
 If `repairs` is omitted, all of the above run. Pass an explicit list to limit which apply. See "Available Repairs" below for details on each pass.
 
 **Note on malformed commands:** Lean's parser silently discards source it cannot parse as a command (e.g., a stray `#fake_command`). Such text is dropped during the initial parse and never reaches `repair_proofs`. The reprinted output will not contain it. This is a property of Lean's parser, not `repair_proofs`.
 
-[Try this example in the web UI](https://axle.axiommath.ai/repair_proofs#data=eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBwYXJhbGxlbF9nb2Fsc19leHRyYW5lb3VzXG4gICh5IDog4oSCKSAoeCA6IOKEnSkgKGggOiB4IOKJpSAyKSA6XG4gIDcgKiAoMyAqIHkgKyAyKSA9IDIxICogeSArIDE0XG4gIOKIpyB4XjIg4omlIDFcbiAgOj0gYnlcbiAgY29uc3RydWN0b3JcbiAgYWxsX2dvYWxzIHNvcnJ5XG4gIGdyaW5kXG4gIHJmbFxuICBzb3JyeSIsImlnbm9yZV9pbXBvcnRzIjpmYWxzZSwiZW52aXJvbm1lbnQiOiJsZWFuLTQuMjcuMCIsInRpbWVvdXRfc2Vjb25kcyI6MTIwfQ%3D%3D)
+[Try this example in the web UI](https://axle.axiommath.ai/repair_proofs#data=eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBwYXJhbGxlbF9nb2Fsc19leHRyYW5lb3VzXG4gICh5IDog4oSCKSAoeCA6IOKEnSkgKGggOiB4IOKJpSAyKSA6XG4gIDcgKiAoMyAqIHkgKyAyKSA9IDIxICogeSArIDE0XG4gIOKIpyB4XjIg4omlIDFcbiAgOj0gYnlcbiAgY29uc3RydWN0b3JcbiAgYWxsX2dvYWxzIHNvcnJ5XG4gIGdyaW5kXG4gIHJmbFxuICBzb3JyeSIsImlnbm9yZV9pbXBvcnRzIjp0cnVlLCJlbnZpcm9ubWVudCI6ImxlYW4tNC4yNy4wIiwidGltZW91dF9zZWNvbmRzIjoxMjB9)
 
 ??? "Known Limitations"
     - The repair tool does not guarantee that repaired proofs will be semantically correct or complete
@@ -28,26 +29,28 @@ If `repairs` is omitted, all of the above run. Pass an explicit list to limit wh
 ??? "`names` · list[str] · Theorem names to process"
     Optional list of theorem names to process. If not specified, all theorems are processed.
     Names not found in the code are silently ignored.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`indices` · list[str] · Theorem indices to process"
     Optional list of theorem indices to process (0-based). Supports negative indices:
     `-1` is the last theorem, `-2` is second-to-last, etc.
     If not specified, all theorems are processed.
+    When `theorems_only` is `false`, these select over all declarations (not just theorems).
 
 ??? "`theorems_only` · bool · default: `True` · Process theorems/lemmas only"
     If `true` (default), only `theorem`/`lemma` declarations are processed. Set to `false` to process all declaration kinds (`def`/`instance`/`abbrev`/`opaque`/etc). When `false`, `names` and `indices` select over all declarations rather than just theorems.
 
-??? "`repairs` · list[str] · default: `['remove_unknown_options', 'enable_autoImplicit', 'remove_extraneous_tactics', 'apply_terminal_tactics', 'replace_unsafe_tactics']` · List of repairs to apply"
+??? "`repairs` · list[str] · default: `['remove_unknown_options', 'enable_autoImplicit', 'relax_defeq_transparency', 'remove_extraneous_tactics', 'apply_terminal_tactics', 'replace_unsafe_tactics']` · List of repairs to apply"
     If not specified, all repairs are applied. See below for available repairs.
 
 ??? "`terminal_tactics` · list[str] · default: `['grind']` · Tactics to try for closing goals"
     Used when 'apply_terminal_tactics' repair is applied. Tactics tried in order; stops on first success. Defaults to 'grind'.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -63,14 +66,15 @@ If `repairs` is omitted, all of the above run. Pass an explicit list to limit wh
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from repair_proofs tool"
     Messages from the repair_proofs tool with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate tool-specific issues (not Lean compilation errors).
+
+    Errors here are failed repairs: a repair was detected as necessary, but no successful change could fix it.
 
 ??? "`content` · string · Lean code with repair attempts applied"
-    Check `okay` to see if repairs succeeded.
+    Check `okay` to see if repairs succeeded and the repaired code compiles.
 
 ??? "`timings` · dict · Execution timing breakdown"
     Timing information in milliseconds for various stages of processing.
@@ -78,8 +82,8 @@ If `repairs` is omitted, all of the above run. Pass an explicit list to limit wh
 ??? "`repair_stats` · dict · Count of each repair type applied"
     Maps repair names to counts (e.g., `{"apply_terminal_tactics": 2}`).
 
-??? "`okay` · bool · Whether the proof compiles after repair and all repairs succeed"
-    `True` when the file compiles after repair and all repairs succeed; `False` otherwise.
+??? "`okay` · bool · True if all repairs succeed and the repaired code compiles"
+    `True` when all repairs succeed and the repaired code compiles; `False` otherwise. A failed repair is when a repair is detected as necessary but no successful change could fix it — e.g. a `sorry` that no terminal tactic could prove, or a `native_decide` that can't be safely replaced. Failed repairs are reported in `tool_messages.errors`.
 
 
 ## Available Repairs
@@ -118,6 +122,28 @@ If `repairs` is omitted, all of the above run. Pass an explicit list to limit wh
 
 ??? "`enable_autoImplicit`"
     When a command fails because it relies on auto-implicit binders but `autoImplicit` is disabled in the current scope, this repair prepends `set_option autoImplicit true in` to the command so it elaborates. Note that `autoImplicit` is already on by default, so this only affects code that explicitly turns it off.
+
+??? "`relax_defeq_transparency`"
+    Lean 4.29's `backward.isDefEq.respectTransparency` (default `true`) keeps `isDefEq` from unfolding reducible/instance definitions when unifying implicit arguments, breaking proofs that relied on it. Mathlib turns it off per-theorem. Similarly, this repair prepends `set_option backward.isDefEq.respectTransparency false in` when the fix gets the proof further (all errors resolved, or the first error appears later in the source). On environments without the option, the repair is a no-op.
+
+    **Before:**
+    ```lean
+    import Mathlib
+
+    open Finset in
+    theorem pnat_card_Icc (a b : ℕ+) : #(Icc a b) = b + 1 - a := by
+      rw [← Nat.card_Icc, ← PNat.map_subtype_embedding_Icc, card_map]
+    ```
+
+    **After (Lean ≥ 4.29):**
+    ```lean
+    import Mathlib
+
+    set_option backward.isDefEq.respectTransparency false in
+    open Finset in
+    theorem pnat_card_Icc (a b : ℕ+) : #(Icc a b) = b + 1 - a := by
+      rw [← Nat.card_Icc, ← PNat.map_subtype_embedding_Icc, card_map]
+    ```
 
 ??? "`remove_extraneous_tactics`"
     When a proof is already complete but has extra tactics afterward, this repair removes the extraneous tactics.

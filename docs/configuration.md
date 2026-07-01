@@ -115,8 +115,10 @@ axle environments
 #### HTTP API
 
 ```bash
-curl -s https://axle.axiommath.ai/v1/environments | jq
+curl -s -H "Authorization: Bearer $AXLE_API_KEY" https://axle.axiommath.ai/v1/environments | jq
 ```
+
+The `Authorization` header is required on deployments with `api_allow_anonymous=false`; on permissive deployments it is silently accepted.
 
 ### Environment Response Format
 
@@ -153,4 +155,4 @@ Each environment includes the following fields:
 ]
 ```
 
-See [Import Mismatch Errors](troubleshooting.md#import-mismatch-errors) for important notes on how AXLE handles import statements.
+See [Import Mismatches](troubleshooting.md#import-mismatches) for important notes on how AXLE handles import statements.

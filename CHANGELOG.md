@@ -10,6 +10,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Releases]
 
+## v1.4.0 - July 1, 2026
+
+AXLE will be presented at the 3rd AI for Math Workshop at ICML 2026 as a contributed talk! Read the technical report on [arXiv](https://arxiv.org/abs/2606.26442).
+
+### Changed
+
+- `ignore_imports` now defaults to `true`. When your code's imports don't match the environment's default header, AXLE substitutes the default header (reusing the cached environment) instead of raising an error. Setting `ignore_imports=false` no longer errors on a mismatch; instead AXLE processes your imports as written, which is significantly slower and may give incorrect results if a required dependency such as `Mathlib.Tactic` is missing (a warning is returned in these cases). See [Import Mismatches](https://axle.axiommath.ai/v1/docs/troubleshooting/#import-mismatches) for details.
+
+- Reworked the `tool_messages` and `okay` fields for a few tools. See [Interpreting the `okay` field](https://axle.axiommath.ai/v1/docs/troubleshooting/#interpreting-the-okay-field) for details.
+
+    - `check` now reports validation findings (`sorry`, disallowed axioms, unsafe definitions) as `tool_messages` warnings instead of errors. `okay` continues to reflect compilation only, and the offending declarations remain listed in `failed_declarations`.
+    - `repair_proofs` now reports failed repairs (e.g. terminal tactics that fail to prove a `sorry`) as `tool_messages` errors instead of warnings, so `okay` is `True` only when the repaired code compiles *and* all repairs succeed.
+
+- Many tools now inspect values of opaques: `opaque` and `partial def` (and `theorem` in 4.30+).
+
+    - `merge` now considers opaque bodies, not just types, when de-duplicating.
+    - `extract_decls` now populates value fields for opaques.
+
+- In `check` and `verify_proof`, file-level validation errors now invalidate all contained declarations — e.g. use of `open private` results in every declaration being added to `failed_declarations`.
+- Reworded one of the `verify_proof`/`check` error messages to be more descriptive.
+
+    - Before: `Declaration '{name}' uses 'sorry' which is not allowed in a valid proof`
+    - After: `Declaration '{name}' is incomplete (uses 'sorry' or has errors)`
+
+### Added
+- Added Lean 4.30.0 and 4.31.0 support.
+- Added a `relax_defeq_transparency` repair pass to `repair_proofs` (on by default). Lean 4.29's `backward.isDefEq.respectTransparency` (default `true`) keeps `isDefEq` from unfolding reducible/instance definitions when unifying implicit arguments, breaking proofs that relied on it. Mathlib turns it off per-theorem. This repair prepends `set_option backward.isDefEq.respectTransparency false in` when the fix gets the proof further (all errors resolved, or the first error appears later in the source). On environments without the option, the repair is a no-op.
+- `extract_decls` and `extract_theorems` report four new per-declaration fields: `type_depth`, `term_depth`, `wall_ms`, and `heartbeats`. See the [`extract_decls` page](https://axle.axiommath.ai/v1/docs/tools/extract_decls) for more details.
+
+### Removed
+- Removed the `http2` parameter from the `AxleClient` constructor, which was slowing the client down. The client now uses HTTP/1.1 exclusively (via `aiohttp`); the optional HTTP/2 transport and its `httpx` dependency have been dropped. Code that passed `http2=...` should remove that argument.
+
+### Fixed
+- Fixed `extract_decls` bug for opaques where value dependencies were misclassified as type dependencies.
+- Fixed `disprove` bug negating only the goal instead of negating the entire declaration type. The negated goal is now returned in a new `negated` field (a map from theorem name to negated goal) instead of being appended to each `results` message.
+- Browser-based clients (web apps, extensions, in-page demos) can call AXLE directly! The HTTP API now supports cross-origin (CORS) requests: `OPTIONS` preflights return `204` with `Access-Control-Allow-*` headers, and every `/api/v1/` response carries `Access-Control-Allow-Origin`.
+- Fixed HTTP status codes on `/api/v1/` endpoints: an unknown tool name now returns `404` (previously `200` with a `user_error` body), and methods other than `POST` return `405` with an `Allow` header (previously `422`).
+- Fixed a rare bug resulting in lost executor slots. This bug used to cause a rare user-side failure or, more commonly, very high latency for some requests.
+
+
+Thanks to @SSingh-07 on Github for submitting a few issues, which we have fixed in this update!!
+
 ## v1.3.0 - June 3, 2026
 
 ### Added

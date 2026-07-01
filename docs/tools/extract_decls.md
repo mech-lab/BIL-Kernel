@@ -9,11 +9,11 @@ Split a file containing one or more declarations into smaller units, each contai
 ??? "`content` · str · required · Lean source code"
     The Lean source code to be processed by this tool.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -32,7 +32,7 @@ Split a file containing one or more declarations into smaller units, each contai
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from extraction tool"
     Messages from the extraction tool with `errors`, `warnings`, and `infos` lists.
@@ -73,6 +73,12 @@ Each document in the `documents` dictionary contains:
 ??? "`type_hash` · int · Hash of the canonical type expression"
     Hash of the canonical, alpha-invariant type expression. Useful for deduplication.
 
+??? "`type_depth` · int · Structural depth of the type expression"
+    The nesting depth of the declaration's type as a Lean expression. This field maxes out at 255.
+
+??? "`term_depth` · int · Structural depth of the value expression"
+    The nesting depth of the declaration's value or proof as a Lean expression, or 0 when the declaration has no value. This field maxes out at 255.
+
 ??? "`is_sorry` · bool · Whether the declaration contains a sorry"
     True if the declaration contains a `sorry`.
 
@@ -91,10 +97,16 @@ Each document in the `documents` dictionary contains:
 ??? "`tactic_counts` · dict[str, int] · Map of tactic names to occurrence counts"
     Breakdown of which tactics are used and how often. Only meaningful for theorems/lemmas with tactic proofs.
 
-??? "`local_type_dependencies` · list[str] · Transitive local dependencies of the type"
+??? "`wall_ms` · int · Wall-clock milliseconds to elaborate the command"
+    How long this command took to elaborate. This field reports wall-clock time, so it can vary from run to run.
+
+??? "`heartbeats` · int · Heartbeats consumed elaborating the command"
+    Lean heartbeats consumed while elaborating this command.
+
+??? "`local_type_dependencies` · list[str] · Local dependencies of the type"
     Local declarations that the declaration's type depends on (non-transitive).
 
-??? "`local_value_dependencies` · list[str] · Transitive local dependencies of the body"
+??? "`local_value_dependencies` · list[str] · Local dependencies of the body"
     Local declarations that the declaration's body/proof depends on (non-transitive).
 
 ??? "`external_type_dependencies` · list[str] · Immediate external dependencies of the type"
@@ -124,7 +136,7 @@ Each document in the `documents` dictionary contains:
 result = await axle.extract_decls(
     content="import Mathlib\ndef foo : Nat := 1\ntheorem bar : foo = 1 := rfl",
     environment="lean-4.28.0",
-    ignore_imports=False,  # Optional
+    ignore_imports=True,  # Optional
     timeout_seconds=120,   # Optional
 )
 
@@ -183,12 +195,16 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/extract_decls \
       "signature": "def foo : Nat",
       "type": "ℕ",
       "type_hash": 421340980,
+      "type_depth": 0,
+      "term_depth": 3,
       "is_sorry": false,
       "index": 0,
       "line_pos": 2,
       "end_line_pos": 2,
       "proof_length": 1,
       "tactic_counts": {},
+      "wall_ms": 1,
+      "heartbeats": 3,
       "local_value_dependencies": [],
       "local_type_dependencies": [],
       "external_value_dependencies": ["OfNat.ofNat", "Nat", "instOfNatNat"],
@@ -206,12 +222,16 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/extract_decls \
       "signature": "theorem bar : foo = 1",
       "type": "foo = 1",
       "type_hash": 254164366,
+      "type_depth": 4,
+      "term_depth": 4,
       "is_sorry": false,
       "index": 1,
       "line_pos": 3,
       "end_line_pos": 3,
       "proof_length": 1,
       "tactic_counts": {},
+      "wall_ms": 1,
+      "heartbeats": 5,
       "local_value_dependencies": ["foo"],
       "local_type_dependencies": ["foo"],
       "external_value_dependencies": ["rfl", "Nat"],

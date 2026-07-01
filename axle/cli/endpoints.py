@@ -83,9 +83,9 @@ IGNORE_IMPORTS_INPUT: InputField = {
     "details": """\
 Controls import statement handling:
 
-- `false` (default): Validate that imports match the environment. Returns an error if they don't.
-- `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.""",
-    "default": False,
+- `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+- `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.""",
+    "default": True,
 }
 
 # Theorem selection by name
@@ -95,7 +95,8 @@ NAMES_INPUT: InputField = {
     "description": "Theorem names to process",
     "details": """\
 Optional list of theorem names to process. If not specified, all theorems are processed.
-Names not found in the code are silently ignored.""",
+Names not found in the code are silently ignored.
+When `theorems_only` is `false`, these select over all declarations (not just theorems).""",
     "required": False,
     "placeholder": "foo, bar",
 }
@@ -108,7 +109,8 @@ INDICES_INPUT: InputField = {
     "details": """\
 Optional list of theorem indices to process (0-based). Supports negative indices:
 `-1` is the last theorem, `-2` is second-to-last, etc.
-If not specified, all theorems are processed.""",
+If not specified, all theorems are processed.
+When `theorems_only` is `false`, these select over all declarations (not just theorems).""",
     "required": False,
     "placeholder": "0, 1, -1",
     "cli_list_type": "int",
@@ -151,7 +153,7 @@ LEAN_MESSAGES_OUTPUT: OutputField = {
     "description": "Messages from Lean compiler",
     "details": """\
 Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-Errors here indicate invalid Lean code (syntax errors, type errors, etc.).""",
+Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.""",
 }
 
 TIMINGS_OUTPUT: OutputField = {
@@ -192,6 +194,12 @@ DOCUMENT_FIELDS_BASE = """\
 ??? "`type_hash` · int · Hash of the canonical type expression"
     Hash of the canonical, alpha-invariant type expression. Useful for deduplication.
 
+??? "`type_depth` · int · Structural depth of the type expression"
+    The nesting depth of the declaration's type as a Lean expression. This field maxes out at 255.
+
+??? "`term_depth` · int · Structural depth of the value expression"
+    The nesting depth of the declaration's value or proof as a Lean expression, or 0 when the declaration has no value. This field maxes out at 255.
+
 ??? "`is_sorry` · bool · Whether the declaration contains a sorry"
     True if the declaration contains a `sorry`.
 
@@ -210,10 +218,16 @@ DOCUMENT_FIELDS_BASE = """\
 ??? "`tactic_counts` · dict[str, int] · Map of tactic names to occurrence counts"
     Breakdown of which tactics are used and how often. Only meaningful for theorems/lemmas with tactic proofs.
 
-??? "`local_type_dependencies` · list[str] · Transitive local dependencies of the type"
+??? "`wall_ms` · int · Wall-clock milliseconds to elaborate the command"
+    How long this command took to elaborate. This field reports wall-clock time, so it can vary from run to run.
+
+??? "`heartbeats` · int · Heartbeats consumed elaborating the command"
+    Lean heartbeats consumed while elaborating this command.
+
+??? "`local_type_dependencies` · list[str] · Local dependencies of the type"
     Local declarations that the declaration's type depends on (non-transitive).
 
-??? "`local_value_dependencies` · list[str] · Transitive local dependencies of the body"
+??? "`local_value_dependencies` · list[str] · Local dependencies of the body"
     Local declarations that the declaration's body/proof depends on (non-transitive).
 
 ??? "`external_type_dependencies` · list[str] · Immediate external dependencies of the type"
@@ -334,7 +348,7 @@ See the corresponding [Github issue](https://github.com/AxiomMath/axiom-lean-eng
 | `Definition '{name}' does not match expected signature: expected {X}, got {Y}` | Type or value of definition has been changed |
 | `Unsafe function '{name}' detected` | Use of an `unsafe` function |
 | `In '{name}': Axiom '{axiom}' is not in the allowed set of standard axioms` | Use of a disallowed axiom |
-| `Declaration '{name}' uses 'sorry' which is not allowed in a valid proof` | Theorem is not proven |
+| `Declaration '{name}' is incomplete (uses 'sorry' or has errors)` | Theorem is not proven. This error indicates one of two things: an explicit `sorry`, or an error while elaborating the proof. |
 | `Candidate uses banned 'open private' command` | Use of disallowed `open private` command |""",
             "__python__": True,
             "__cli__": True,
@@ -348,7 +362,7 @@ result = await axle.verify_proof(
     environment="lean-4.28.0",
     permitted_sorries=["helper"],  # Optional
     mathlib_options=False,          # Optional
-    ignore_imports=False,          # Optional
+    ignore_imports=True,          # Optional
     timeout_seconds=120,           # Optional
 )
 
@@ -474,20 +488,24 @@ reject valid proofs.""",
                 "details": """\
 Messages from the AXLE verification tool with `errors`, `warnings`, and `infos` lists.
 
-Errors here mean `content` was valid Lean code, but not a satisfactory proof of `formal_statement`.
+Errors here mean `content` was compiling Lean code, but not a satisfactory proof of `formal_statement`.
 Common errors include: "Missing required declaration", "does not match expected signature", "uses sorry".""",
             },
             {
                 "name": "failed_declarations",
                 "type": "list",
                 "description": "Declaration names that failed validation",
+                "details": "List of declaration names that have compilation or validation errors. These are declarations that do not compile, use `sorry`, use disallowed axioms, etc. A file-level validation finding (e.g. use of `open private`) marks every declaration in the file as failed.",
             },
             TIMINGS_OUTPUT,
         ],
     },
     "check": {
         "title": "Check",
-        "details": "Evaluate Lean code and collect all messages (errors, warnings, and info). Use this to check if code is valid without verification against a formal statement, or to get the output of `#check` / `#eval` statements.",
+        "details": """\
+Evaluate Lean code and collect all messages (errors, warnings, and info). Use this to check if code compiles without verification against a formal statement, or to get the output of `#check` / `#eval` statements.
+
+> **Looking to confirm a proof?** `check` reports compilation only — its `okay` field stays `true` even when a declaration uses `sorry` or a disallowed axiom. If you want a single pass/fail for "is this a complete, valid proof of a given statement," use [`verify_proof`](verify_proof.md) instead, which folds those failures into `okay`.""",
         "description": "evaluate Lean code and report all messages",
         "cli_output": {
             "mode": "json_stdout",
@@ -508,11 +526,12 @@ result = await axle.check(
     content="import Mathlib\\n#eval 2+2",
     environment="lean-4.28.0",
     mathlib_options=False,     # Optional
-    ignore_imports=False,     # Optional
+    ignore_imports=True,     # Optional
     timeout_seconds=120,      # Optional
 )
 
-print(result.okay)  # True if code is valid
+print(result.okay)  # True if code compiles
+print(result.okay and not result.failed_declarations)  # True if code compiles AND contains only complete, valid proofs
 print(result.content)  # The processed Lean code
 print(result.lean_messages.infos)  # ["4\\n"]""",
         "http_example": """\
@@ -549,17 +568,26 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/check \\
             {
                 "name": "okay",
                 "type": "bool",
-                "description": "True if the Lean code is valid",
-                "details": "Returns `true` if the code compiles without errors. Warnings don't affect this value.",
+                "description": "True if the Lean code compiles",
+                "details": """\
+Returns `true` if the code compiles without errors. Warnings don't affect this value.
+
+This only reflects compilation. It does **not** mean the code is a complete, valid proof: a declaration that uses `sorry`, disallowed axioms, or unsafe definitions still compiles and leaves `okay` as `true`. Those findings are reported in `tool_messages.warnings` (with the offending names in `failed_declarations`). If you need to know whether the input is a real proof, also check that `failed_declarations` is empty, or better yet, use [`verify_proof`](verify_proof.md).""",
             },
             CONTENT_OUTPUT,
             LEAN_MESSAGES_OUTPUT,
-            tool_messages_output("check"),
+            {
+                **tool_messages_output("check"),
+                "details": """\
+Messages from the check tool with `errors`, `warnings`, and `infos` lists.
+
+Validation findings — uses of `sorry`, disallowed axioms, or unsafe definitions — are reported as warnings here. Use [`verify_proof`](verify_proof.md) to treat them as errors.""",
+            },
             {
                 "name": "failed_declarations",
                 "type": "list",
                 "description": "Declaration names that failed validation",
-                "details": "List of declaration names that have compilation or validation errors.",
+                "details": "List of declaration names that have compilation or validation errors. These are declarations that do not compile, use `sorry`, use disallowed axioms, etc. A file-level validation finding (e.g. use of `open private`) marks every declaration in the file as failed.",
             },
             TIMINGS_OUTPUT,
         ],
@@ -600,7 +628,7 @@ Each document in the `documents` dictionary contains:
 result = await axle.extract_theorems(
     content="import Mathlib\\ntheorem foo : 1 = 1 := rfl\\ntheorem bar : 2 = 2 := rfl",
     environment="lean-4.28.0",
-    ignore_imports=False,  # Optional
+    ignore_imports=True,  # Optional
     timeout_seconds=120,   # Optional
 )
 
@@ -637,12 +665,16 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/extract_theorems \\
       "signature": "theorem foo : 1 = 1",
       "type": "1 = 1",
       "type_hash": 1326858781,
+      "type_depth": 5,
+      "term_depth": 4,
       "is_sorry": false,
       "index": 0,
       "line_pos": 2,
       "end_line_pos": 2,
       "proof_length": 1,
       "tactic_counts": {},
+      "wall_ms": 1,
+      "heartbeats": 4,
       "local_value_dependencies": [],
       "local_type_dependencies": [],
       "external_value_dependencies": ["rfl", "Nat", "OfNat.ofNat", "instOfNatNat"],
@@ -715,7 +747,7 @@ Each document in the `documents` dictionary contains:
 result = await axle.extract_decls(
     content="import Mathlib\\ndef foo : Nat := 1\\ntheorem bar : foo = 1 := rfl",
     environment="lean-4.28.0",
-    ignore_imports=False,  # Optional
+    ignore_imports=True,  # Optional
     timeout_seconds=120,   # Optional
 )
 
@@ -751,12 +783,16 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/extract_decls \\
       "signature": "def foo : Nat",
       "type": "\u2115",
       "type_hash": 421340980,
+      "type_depth": 0,
+      "term_depth": 3,
       "is_sorry": false,
       "index": 0,
       "line_pos": 2,
       "end_line_pos": 2,
       "proof_length": 1,
       "tactic_counts": {},
+      "wall_ms": 1,
+      "heartbeats": 3,
       "local_value_dependencies": [],
       "local_type_dependencies": [],
       "external_value_dependencies": ["OfNat.ofNat", "Nat", "instOfNatNat"],
@@ -774,12 +810,16 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/extract_decls \\
       "signature": "theorem bar : foo = 1",
       "type": "foo = 1",
       "type_hash": 254164366,
+      "type_depth": 4,
+      "term_depth": 4,
       "is_sorry": false,
       "index": 1,
       "line_pos": 3,
       "end_line_pos": 3,
       "proof_length": 1,
       "tactic_counts": {},
+      "wall_ms": 1,
+      "heartbeats": 5,
       "local_value_dependencies": ["foo"],
       "local_type_dependencies": ["foo"],
       "external_value_dependencies": ["rfl", "Nat"],
@@ -1391,7 +1431,7 @@ Defaults to true.""",
             "# Apply only specific simplifications\naxle simplify-theorems complex.lean --simplifications remove_unused_tactics --environment lean-4.28.0",
             "# Pipeline usage\ncat complex.lean | axle simplify-theorems - --environment lean-4.28.0 | axle check - --environment lean-4.28.0",
         ],
-        "web_ui_example_data": "eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBmb28gKGEgYiA6IE5hdCkgOlxuICAgIGEg4omkIGEgKyBiIDo9IGJ5XG4gIGhhdmUgaCA6IGEgKyAwIOKJpCBhICsgYiA6PSBieVxuICAgIGFwcGx5IE5hdC5hZGRfbGVfYWRkX2xlZnQgO1xuICAgIGV4YWN0IE5hdC56ZXJvX2xlIF9cbiAgc2ltcCIsImlnbm9yZV9pbXBvcnRzIjpmYWxzZSwiZW52aXJvbm1lbnQiOiJsZWFuLTQuMjcuMCIsInRpbWVvdXRfc2Vjb25kcyI6MTIwfQ%3D%3D",
+        "web_ui_example_data": "eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBmb28gKGEgYiA6IE5hdCkgOlxuICAgIGEg4omkIGEgKyBiIDo9IGJ5XG4gIGhhdmUgaCA6IGEgKyAwIOKJpCBhICsgYiA6PSBieVxuICAgIGFwcGx5IE5hdC5hZGRfbGVfYWRkX2xlZnQgO1xuICAgIGV4YWN0IE5hdC56ZXJvX2xlIF9cbiAgc2ltcCIsImlnbm9yZV9pbXBvcnRzIjp0cnVlLCJlbnZpcm9ubWVudCI6ImxlYW4tNC4yNy4wIiwidGltZW91dF9zZWNvbmRzIjoxMjB9",
         "sections": {
             "__inputs__": True,
             "__outputs__": True,
@@ -1567,7 +1607,8 @@ Attempt to repair broken theorem proofs. Available repairs:
 - `apply_terminal_tactics` — try terminal tactics in place of `sorry`
 - `replace_unsafe_tactics` — replace `native_decide` with `decide +kernel`
 - `remove_unknown_options` — strip `set_option` commands referencing an unknown option
-- `enable_autoImplicit` — prepend `set_option autoImplicit true in` when a command needs auto-implicit binders
+- `enable_autoImplicit` — set `autoImplicit true` when a command needs auto-implicit binders
+- `relax_defeq_transparency` — set `backward.isDefEq.respectTransparency false` when a command fails due to improper reducibility/transparency settings for implicit arguments (Lean ≥ 4.29 only)
 
 If `repairs` is omitted, all of the above run. Pass an explicit list to limit which apply. See "Available Repairs" below for details on each pass.
 
@@ -1584,7 +1625,7 @@ If `repairs` is omitted, all of the above run. Pass an explicit list to limit wh
             "# Apply only specific repairs\naxle repair-proofs broken.lean --repairs remove_extraneous_tactics --environment lean-4.28.0",
             "# Pipeline usage\ncat broken.lean | axle repair-proofs - --environment lean-4.28.0 | axle check - --environment lean-4.28.0",
         ],
-        "web_ui_example_data": "eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBwYXJhbGxlbF9nb2Fsc19leHRyYW5lb3VzXG4gICh5IDog4oSCKSAoeCA6IOKEnSkgKGggOiB4IOKJpSAyKSA6XG4gIDcgKiAoMyAqIHkgKyAyKSA9IDIxICogeSArIDE0XG4gIOKIpyB4XjIg4omlIDFcbiAgOj0gYnlcbiAgY29uc3RydWN0b3JcbiAgYWxsX2dvYWxzIHNvcnJ5XG4gIGdyaW5kXG4gIHJmbFxuICBzb3JyeSIsImlnbm9yZV9pbXBvcnRzIjpmYWxzZSwiZW52aXJvbm1lbnQiOiJsZWFuLTQuMjcuMCIsInRpbWVvdXRfc2Vjb25kcyI6MTIwfQ%3D%3D",
+        "web_ui_example_data": "eyJjb250ZW50IjoiaW1wb3J0IE1hdGhsaWJcblxudGhlb3JlbSBwYXJhbGxlbF9nb2Fsc19leHRyYW5lb3VzXG4gICh5IDog4oSCKSAoeCA6IOKEnSkgKGggOiB4IOKJpSAyKSA6XG4gIDcgKiAoMyAqIHkgKyAyKSA9IDIxICogeSArIDE0XG4gIOKIpyB4XjIg4omlIDFcbiAgOj0gYnlcbiAgY29uc3RydWN0b3JcbiAgYWxsX2dvYWxzIHNvcnJ5XG4gIGdyaW5kXG4gIHJmbFxuICBzb3JyeSIsImlnbm9yZV9pbXBvcnRzIjp0cnVlLCJlbnZpcm9ubWVudCI6ImxlYW4tNC4yNy4wIiwidGltZW91dF9zZWNvbmRzIjoxMjB9",
         "sections": {
             "Known Limitations": """\
 - The repair tool does not guarantee that repaired proofs will be semantically correct or complete
@@ -1628,6 +1669,28 @@ If `repairs` is omitted, all of the above run. Pass an explicit list to limit wh
 
 ??? "`enable_autoImplicit`"
     When a command fails because it relies on auto-implicit binders but `autoImplicit` is disabled in the current scope, this repair prepends `set_option autoImplicit true in` to the command so it elaborates. Note that `autoImplicit` is already on by default, so this only affects code that explicitly turns it off.
+
+??? "`relax_defeq_transparency`"
+    Lean 4.29's `backward.isDefEq.respectTransparency` (default `true`) keeps `isDefEq` from unfolding reducible/instance definitions when unifying implicit arguments, breaking proofs that relied on it. Mathlib turns it off per-theorem. Similarly, this repair prepends `set_option backward.isDefEq.respectTransparency false in` when the fix gets the proof further (all errors resolved, or the first error appears later in the source). On environments without the option, the repair is a no-op.
+
+    **Before:**
+    ```lean
+    import Mathlib
+
+    open Finset in
+    theorem pnat_card_Icc (a b : ℕ+) : #(Icc a b) = b + 1 - a := by
+      rw [← Nat.card_Icc, ← PNat.map_subtype_embedding_Icc, card_map]
+    ```
+
+    **After (Lean ≥ 4.29):**
+    ```lean
+    import Mathlib
+
+    set_option backward.isDefEq.respectTransparency false in
+    open Finset in
+    theorem pnat_card_Icc (a b : ℕ+) : #(Icc a b) = b + 1 - a := by
+      rw [← Nat.card_Icc, ← PNat.map_subtype_embedding_Icc, card_map]
+    ```
 
 ??? "`remove_extraneous_tactics`"
     When a proof is already complete but has extra tactics afterward, this repair removes the extraneous tactics.
@@ -1755,11 +1818,12 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/repair_proofs \\
                 "default": [
                     "remove_unknown_options",
                     "enable_autoImplicit",
+                    "relax_defeq_transparency",
                     "remove_extraneous_tactics",
                     "apply_terminal_tactics",
                     "replace_unsafe_tactics",
                 ],
-                "placeholder": "remove_unknown_options, enable_autoImplicit, remove_extraneous_tactics, apply_terminal_tactics, replace_unsafe_tactics",
+                "placeholder": "remove_unknown_options, enable_autoImplicit, relax_defeq_transparency, remove_extraneous_tactics, apply_terminal_tactics, replace_unsafe_tactics",
             },
             {
                 "name": "terminal_tactics",
@@ -1776,12 +1840,18 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/repair_proofs \\
         ],
         "outputs": [
             LEAN_MESSAGES_OUTPUT,
-            tool_messages_output("repair_proofs"),
+            {
+                **tool_messages_output("repair_proofs"),
+                "details": """\
+Messages from the repair_proofs tool with `errors`, `warnings`, and `infos` lists.
+
+Errors here are failed repairs: a repair was detected as necessary, but no successful change could fix it.""",
+            },
             {
                 "name": "content",
                 "type": "string",
                 "description": "Lean code with repair attempts applied",
-                "details": "Check `okay` to see if repairs succeeded.",
+                "details": "Check `okay` to see if repairs succeeded and the repaired code compiles.",
             },
             TIMINGS_OUTPUT,
             {
@@ -1793,8 +1863,8 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/repair_proofs \\
             {
                 "name": "okay",
                 "type": "bool",
-                "description": "Whether the proof compiles after repair and all repairs succeed",
-                "details": "`True` when the file compiles after repair and all repairs succeed; `False` otherwise.",
+                "description": "True if all repairs succeed and the repaired code compiles",
+                "details": "`True` when all repairs succeed and the repaired code compiles; `False` otherwise. A failed repair is when a repair is detected as necessary but no successful change could fix it — e.g. a `sorry` that no terminal tactic could prove, or a `native_decide` that can't be safely replaced. Failed repairs are reported in `tool_messages.errors`.",
             },
         ],
     },
@@ -2252,16 +2322,8 @@ theorem multiple (n : Nat) : 1 = 1 ∧ 2 = 2 := by constructor <;> (first | exac
         },
         "inputs": [
             {**CONTENT_INPUT, "placeholder": "theorem foo : 1 = 1 := by\n  sorry"},
-            {
-                **NAMES_INPUT,
-                "details": NAMES_INPUT["details"]
-                + " When `theorems_only` is `false`, these select over all declarations (not just theorems).",
-            },
-            {
-                **INDICES_INPUT,
-                "details": INDICES_INPUT["details"]
-                + " When `theorems_only` is `false`, indices position over all declarations (not just theorems).",
-            },
+            NAMES_INPUT,
+            INDICES_INPUT,
             {
                 "name": "extract_sorries",
                 "type": "checkbox",
@@ -2294,7 +2356,7 @@ theorem multiple (n : Nat) : 1 = 1 ∧ 2 = 2 := by constructor <;> (first | exac
                 "name": "merge_duplicates",
                 "type": "checkbox",
                 "description": "Merge duplicate extracted lemmas (by definitional equality)",
-                "details": "If `true`, extracted lemmas within the same parent that are definitionally equal — to each other, or to the `theorem`/`lemma` they were extracted from — are merged: duplicates collapse into a single lemma that all callsites reference, and a sorry whose goal is defeq to its parent theorem/lemma is dropped rather than lifted into a restatement (e.g. a top-level `:= sorry` / `:= by sorry`). The parent-restatement check applies only to `theorem`/`lemma` parents, not `def`/`instance`/etc. Defaults to false.",
+                "details": "If `true`, extracted lemmas within the same parent that are definitionally equal — to each other, or to the `theorem`/`lemma` they were extracted from — are merged: duplicates collapse into a single lemma that all callsites reference, and a sorry whose goal is definitionally equal to its parent theorem/lemma is dropped rather than lifted into a restatement (e.g. a top-level `:= sorry` / `:= by sorry`). The parent-restatement check applies only to `theorem`/`lemma` parents, not `def`/`instance`/etc. Defaults to false.",
                 "default": False,
             },
             THEOREMS_ONLY_INPUT,
@@ -2352,10 +2414,11 @@ result = await axle.disprove(
     content=lean_code,
     environment="lean-4.28.0",
     names=["conjecture1", "conjecture2"],  # Optional
-    ignore_imports=False,                   # Optional
+    ignore_imports=True,                   # Optional
 )
 print(result.disproved_theorems)  # ["conjecture2"]
 print(result.results)  # Per-theorem results
+print(result.negated)  # Per-theorem negated goals
 print(result.content)  # The processed Lean code""",
         "http_example": """\
 curl -s -X POST https://axle.axiommath.ai/api/v1/disprove \\
@@ -2374,8 +2437,12 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/disprove \\
     "infos": []
   },
   "results": {
-    "solid_fact": "Disprove: failed to prove negation. Remaining goal: `1 = 1`\\n",
+    "solid_fact": "Disprove: failed to prove negation.",
     "bold_claim": "Disprove: goal is false! Proof of negation by plausible.\\n\\n===================\\nFound a counter-example!\\nissue: 2 = 3 does not hold\\n(0 shrinks)\\n-------------------\\n"
+  },
+  "negated": {
+    "solid_fact": "¬1 = 1",
+    "bold_claim": "¬2 = 3"
   },
   "disproved_theorems": ["bold_claim"],
   "timings": {
@@ -2410,6 +2477,12 @@ curl -s -X POST https://axle.axiommath.ai/api/v1/disprove \\
                 "type": "dict",
                 "description": "Map from theorem name to disprove result",
                 "details": "Each theorem maps to a string indicating the outcome of the disprove attempt.",
+            },
+            {
+                "name": "negated",
+                "type": "dict",
+                "description": "Map from theorem name to negated goal",
+                "details": "Each theorem maps to the negated goal type that was attempted (the statement whose proof would disprove the theorem).",
             },
             {
                 "name": "disproved_theorems",

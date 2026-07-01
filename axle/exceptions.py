@@ -91,3 +91,11 @@ class AxleRateLimitedError(AxleApiError):
 
     def __init__(self, message: str):
         super().__init__(message, status_code=429)
+
+
+class AxleBrowserLoginRequiredError(AxleApiError):
+    """Endpoint requires interactive browser sign-in; not reachable from the CLI/SDK."""
+
+    def __init__(self, *, api_base_url: str, message: str) -> None:
+        self.api_base_url = api_base_url
+        super().__init__(message, status_code=302)

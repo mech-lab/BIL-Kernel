@@ -41,9 +41,10 @@ async def main():
             content="import Mathlib\ntheorem citation_needed : 1 + 1 = 2 := by decide",
             environment="lean-4.28.0",
         )
-        print(f"Valid: {result.okay}")
-        if result.lean_messages.errors:
-            print("Errors:", result.lean_messages.errors)
+        # okay means it compiled; failed_declarations catches sorry, disallowed axioms, etc. that leave okay true.
+        print(f"Compiles: {result.okay}")
+        print(f"Valid proof: {result.okay and not result.failed_declarations}")
+        print("Errors:", result.lean_messages.errors)
 
 asyncio.run(main())
 ```

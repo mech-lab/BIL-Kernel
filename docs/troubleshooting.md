@@ -21,7 +21,7 @@ When troubleshooting, start by examining the messages in the response. AXLE resp
 
 | Field | Contents |
 |-------|----------|
-| `lean_messages` | Output from the Lean compiler itself |
+| `lean_messages` | Output from the Lean compiler itself; an empty `errors` list means the code compiles |
 | `tool_messages` | AXLE-specific logs and validation results |
 
 **Message severity:**
@@ -30,7 +30,7 @@ When troubleshooting, start by examining the messages in the response. AXLE resp
 - **warnings** — Something is suspicious but not fatal
 - **infos** — Informational output (timing, debug info, etc.)
 
-For most tools, `tool_messages.errors` is empty; fatal issues are raised at the response level (see above). The exceptions are `verify_proof` and `check`, which use `tool_messages.errors` to report validation failures.
+For most tools, `tool_messages.errors` is empty; fatal issues are raised at the response level (see above). The exceptions are `verify_proof`, which uses `tool_messages.errors` to report strict proof verification failures, and `repair_proofs`, which uses it to report failed repairs.
 
 ## Common Issues
 
@@ -65,22 +65,19 @@ else:
 ```
 
 
-### Import Mismatch Errors
+### Import Mismatches
 
-**Symptom:** AXLE raises a user error about mismatched imports.
+**Symptom:** Your code's imports don't match the environment's default header, and you get an info/warning message or unexpectedly slow (or incorrect) results.
 
-**Cause:** Your code's import statements don't match the environment's expected header. All requests to AXLE are assumed to have the same header (import statements), which is derived from the `imports` field of the environment.
+**Cause:** Every environment has a default header derived from its `imports` field. AXLE keeps a pre-built environment for that header so requests run fast. When your code's imports differ from it, AXLE's behavior depends on the `ignore_imports` flag.
 
-**Resolution options:**
+**Behavior:**
 
-1. **Match your imports to the environment.** Query the [environments endpoint](configuration.md#discovering-available-environments) to discover the expected imports.
+- **`ignore_imports=True` (default):** AXLE ignores the imports in your `content` and substitutes the environment's default header. This reuses the cached environment, so it is fast. The substituted code is returned in the `content` field, and an info message notes the override.
 
-2. **Set `ignore_imports=True`** to have AXLE automatically replace your imports with the environment's defaults. When enabled, AXLE will:
-    - Log a warning about the import mismatch
-    - Replace your code's import statements with the environment's default imports
-    - Return the modified code in the `content` field
+- **`ignore_imports=False`:** AXLE processes your imports exactly as written. This is *significantly slower* because the cached environment cannot be reused, and it may produce **inconsistent or incorrect results** if a required dependency (such as `Mathlib.Tactic`) is missing. AXLE returns a warning in these cases.
 
-Note that behavior may be inconsistent if your imports don't match the environment's expected header.
+**Recommendation:** Leave `ignore_imports` at its default (`True`) unless you specifically need custom imports. To discover the expected imports for an environment, query the [environments endpoint](configuration.md#discovering-available-environments).
 
 ### Unsupported Lean Constructs
 
@@ -97,19 +94,15 @@ Note that behavior may be inconsistent if your imports don't match the environme
 
 **Resolution:** Use the [`normalize`](tools/normalize.md) tool to detect unsupported constructs early. We attempt to support these patterns and fail fast when we can't, but we make no guarantees about stability.
 
-### Proof Validates But `okay` Is False
+### Interpreting the `okay` Field
 
-**Symptom:** Using `verify_proof` or `check`, the code compiles but `result.okay` returns `False`.
+For every tool, `okay` is `true` exactly when `lean_messages.errors` is empty (the code compiles) and `tool_messages.errors` is empty (no tool-specific errors). What differs is what each tool reports as a tool error:
 
-**Cause:** These evaluation tools apply stricter validation than the Lean compiler. A proof may compile but still be invalid by AXLE's standards.
+- **`check`** — compilation only. It produces no tool errors: validation findings (a declaration that uses `sorry`, a disallowed axiom, or an unsafe definition) are reported as `tool_messages` warnings, with the offending names in `failed_declarations`, and do **not** move `okay`. To treat `check` as a pass/fail for a real proof, require `result.okay and not result.failed_declarations`, or better yet, use `verify_proof`.
+- **`verify_proof`** — compilation + strict proof verification. Tool errors are verification failures: the findings above, plus a signature mismatch or a missing declaration. Any of them sets `okay: false`.
+- **`repair_proofs`** — compilation + no failed repairs. A failed repair — a repair was detected as necessary, but no successful change could fix it (e.g. a `sorry` that no terminal tactic could prove, or a `native_decide` that can't be safely replaced) — is a tool error and sets `okay: false`.
 
-**Common reasons for rejection:**
-
-- Using `native_decide` or other disallowed tactics
-- The proof proves a different statement than expected
-- Other AXLE-specific validation rules
-
-**Resolution:** Check `tool_messages.errors` for declaration-specific messages explaining why the proof was rejected.
+If you just want a single "is this a complete, valid proof" answer, use `verify_proof`.
 
 ### "All Executors Failed After N Attempts"
 
@@ -152,3 +145,6 @@ Try simplifying your input or breaking it into smaller pieces.
 ### Tool-Specific Issues
 
 For troubleshooting specific to individual tools, see the documentation for that tool in the [Tools](tools/verify_proof.md) section.
+
+### HTTP 302 to a browser sign-in (`AxleBrowserLoginRequiredError`)
+You may be attempting to access a forbidden internal tier.

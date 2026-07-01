@@ -75,11 +75,11 @@ See the corresponding [Github issue](https://github.com/AxiomMath/axiom-lean-eng
     When `false`, types are compared at face value, which is faster but may rarely
     reject valid proofs.
 
-??? "`ignore_imports` · bool · default: `False` · Ignore import mismatches"
+??? "`ignore_imports` · bool · default: `True` · Ignore import mismatches"
     Controls import statement handling:
 
-    - `false` (default): Validate that imports match the environment. Returns an error if they don't.
-    - `true`: Ignore the imports in `content` and use the environment's default imports instead. See the troubleshooting page for more details.
+    - `true` (default): Ignore the imports in `content` and substitute the environment's default header. This uses the pre-built cached environment, so it is fast. The substituted code is returned in the `content` field.
+    - `false`: Process the imports in `content` exactly as written. This is significantly slower (the cached environment cannot be reused) and may produce inconsistent or incorrect results if a required dependency such as `Mathlib.Tactic` is missing. A warning is returned in these cases. See the troubleshooting page for more details.
 
 ??? "`environment` · str · required · Lean environment or version"
     The Lean environment to use for evaluation. Each environment includes a specific
@@ -101,16 +101,16 @@ See the corresponding [Github issue](https://github.com/AxiomMath/axiom-lean-eng
 
 ??? "`lean_messages` · dict · Messages from Lean compiler"
     Messages from the Lean compiler with `errors`, `warnings`, and `infos` lists.
-    Errors here indicate invalid Lean code (syntax errors, type errors, etc.).
+    Errors here indicate invalid Lean code (syntax errors, type errors, etc.); an empty `errors` list means the code compiles.
 
 ??? "`tool_messages` · dict · Messages from verify_proof tool"
     Messages from the AXLE verification tool with `errors`, `warnings`, and `infos` lists.
 
-    Errors here mean `content` was valid Lean code, but not a satisfactory proof of `formal_statement`.
+    Errors here mean `content` was compiling Lean code, but not a satisfactory proof of `formal_statement`.
     Common errors include: "Missing required declaration", "does not match expected signature", "uses sorry".
 
 ??? "`failed_declarations` · list · Declaration names that failed validation"
-    Declaration names that failed validation
+    List of declaration names that have compilation or validation errors. These are declarations that do not compile, use `sorry`, use disallowed axioms, etc. A file-level validation finding (e.g. use of `open private`) marks every declaration in the file as failed.
 
 ??? "`timings` · dict · Execution timing breakdown"
     Timing information in milliseconds for various stages of processing.
@@ -128,7 +128,7 @@ See the corresponding [Github issue](https://github.com/AxiomMath/axiom-lean-eng
 | `Definition '{name}' does not match expected signature: expected {X}, got {Y}` | Type or value of definition has been changed |
 | `Unsafe function '{name}' detected` | Use of an `unsafe` function |
 | `In '{name}': Axiom '{axiom}' is not in the allowed set of standard axioms` | Use of a disallowed axiom |
-| `Declaration '{name}' uses 'sorry' which is not allowed in a valid proof` | Theorem is not proven |
+| `Declaration '{name}' is incomplete (uses 'sorry' or has errors)` | Theorem is not proven. This error indicates one of two things: an explicit `sorry`, or an error while elaborating the proof. |
 | `Candidate uses banned 'open private' command` | Use of disallowed `open private` command |
 
 ## Python API
@@ -140,7 +140,7 @@ result = await axle.verify_proof(
     environment="lean-4.28.0",
     permitted_sorries=["helper"],  # Optional
     mathlib_options=False,          # Optional
-    ignore_imports=False,          # Optional
+    ignore_imports=True,          # Optional
     timeout_seconds=120,           # Optional
 )
 
