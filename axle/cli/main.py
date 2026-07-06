@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -29,6 +30,30 @@ def read_file_or_stdin(path: str) -> str:
     if path == "-":
         return sys.stdin.read()
     return Path(path).read_text()
+
+
+def bil_repo_root() -> Path:
+    """Resolve the repository root used by the Rust CLI fallback."""
+    return Path(__file__).resolve().parents[2]
+
+
+def resolve_bil_command() -> tuple[list[str], Path | None]:
+    """Resolve the Rust CLI command or development fallback."""
+    bil_cli_bin = os.environ.get("BIL_CLI_BIN")
+    if bil_cli_bin:
+        return [bil_cli_bin], None
+    return ["cargo", "run", "-p", "bil-cli", "--"], bil_repo_root()
+
+
+def run_bil_subcommand(argv: list[str]) -> int:
+    """Run the Rust-backed BIL CLI while preserving stdio and exit codes."""
+    command, cwd = resolve_bil_command()
+    try:
+        completed = subprocess.run([*command, *argv], cwd=cwd, check=False)
+    except FileNotFoundError as exc:
+        print(f"Error: unable to run BIL CLI: {exc}", file=sys.stderr)
+        return 127
+    return int(completed.returncode)
 
 
 def parse_list(value: str | None) -> list[str] | None:
@@ -440,12 +465,16 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Add environments command
     subparsers.add_parser("environments", help="List available Lean environments")
+    subparsers.add_parser("bil", help="Run the Rust-backed BIL CLI")
 
     return parser
 
 
 def main() -> None:
     """CLI entry point."""
+    if len(sys.argv) > 1 and sys.argv[1] == "bil":
+        sys.exit(run_bil_subcommand(sys.argv[2:]))
+
     parser = create_parser()
     args = parser.parse_args()
 

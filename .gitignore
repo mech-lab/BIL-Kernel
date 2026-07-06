@@ -17,6 +17,9 @@ dist/
 # Docs
 site/
 
+# Rust
+target/
+
 # IDE
 .idea/
 .vscode/

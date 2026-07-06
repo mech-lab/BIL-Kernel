@@ -1,0 +1,18 @@
+[package]
+name = "bil-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bil-axle = { path = "../bil-axle" }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+mockito = "1"
+tokio.workspace = true

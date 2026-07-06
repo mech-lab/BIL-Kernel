@@ -20,17 +20,22 @@ Those three institutional domains form the regulated base of the BIL model. **AI
 
 BIL Kernel converts AI-enabled decisions and AXLE-compatible proof outputs into portable institutional evidence bundles.
 
-It provides:
+Today, the repository provides:
 
 * canonical Rust data structures
+* a Rust AXLE-compatible client
+* a Rust CLI foundation
+* a temporary Python compatibility bridge via `axle bil ...`
+
+The near-term kernel roadmap adds:
+
 * deterministic JSON serialization
-* AXLE-compatible artifact ingestion
 * Merkleized evidence bundles
 * cryptographic receipts
 * bundle verification
 * audit-ready reports
 * banking, insurance, and legal metadata profiles
-* CLI tooling for developers and assurance teams
+* broader CLI tooling for developers and assurance teams
 
 The kernel is designed to answer one institutional question:
 
@@ -59,18 +64,20 @@ From checked proofs to bankable evidence.
 
 ## Pure Rust Doctrine
 
-BIL Kernel is not a Python wrapper.
+BIL Kernel is a Rust-native kernel with a temporary Python compatibility bridge during migration.
 
-The kernel runtime is implemented in Rust.
+The kernel runtime, typed AXLE models, first client surface, and `bil` CLI are implemented in Rust.
 
 ```text
-No Python runtime dependency.
-No embedded Python client.
+No Python runtime dependency for the core kernel.
+Temporary in-repo Python bridge during migration.
 No dashboard-first architecture.
 No opaque vendor lock-in.
 ```
 
-The core runtime, CLI, schema models, hashing layer, bundle format, receipt generation, verification engine, and report generator are written in Rust.
+The legacy Python AXLE package remains in the repository to preserve the upstream CLI and SDK workflow while the Rust kernel becomes the primary runtime.
+
+The core runtime, CLI, schema models, hashing layer, bundle format, receipt generation, verification engine, and report generator are intended to live in Rust.
 
 AXLE compatibility is maintained at the artifact boundary through typed Rust models and import adapters.
 
@@ -276,33 +283,46 @@ pub struct VerifyProofResponse {
 bil-kernel/
 ├── Cargo.toml
 ├── crates/
-│   ├── bil-core/              # Core institutional artifact types
-│   ├── bil-axle/              # AXLE-compatible response and artifact models
-│   ├── bil-client/            # Rust async client for AXLE-compatible APIs
-│   ├── bil-schema/            # Canonical JSON schemas
-│   ├── bil-hash/              # Hashing and content addressing
-│   ├── bil-merkle/            # Merkle DAG evidence graph
-│   ├── bil-receipt/           # Cryptographic receipt generation
-│   ├── bil-bundle/            # .bil bundle packaging
-│   ├── bil-verify/            # Bundle verification engine
-│   ├── bil-policy/            # Policy and control boundary checks
-│   ├── bil-risk/              # Banking and insurance risk metadata
-│   ├── bil-legal/             # Legal governance metadata
-│   ├── bil-report/            # JSON, Markdown, and SARIF reports
-│   ├── bil-cli/               # Command-line interface
-│   └── bil-wasm/              # Browser and embedded verifier target
-├── specs/
-│   ├── bil-bundle-v0.md
-│   ├── bil-receipt-v0.md
-│   ├── axle-compat-profile-v0.md
-│   ├── institutional-holonomy.md
-│   └── assurance-apex.md
-├── examples/
-│   ├── axle-proof-output/
-│   ├── ai-credit-decision/
-│   ├── underwriting-review/
-│   └── legal-governance-record/
+│   ├── bil-axle/              # Implemented Rust AXLE-compatible response models
+│   ├── bil-client/            # Implemented Rust async client for AXLE-compatible APIs
+│   └── bil-cli/               # Implemented Rust CLI (`bil status`, `bil environments`, `bil axle ...`)
+├── axle/                      # Legacy Python AXLE SDK and CLI, including `axle bil ...`
+├── docs/                      # Existing Python-oriented documentation during transition
+├── tests/                     # Python bridge and legacy AXLE tests
+├── .github/workflows/         # Combined Python and Rust CI
+├── pyproject.toml
 └── README.md
+```
+
+---
+
+## Current Crates
+
+### `bil-axle`
+
+Implemented today. Contains the AXLE-compatible response and artifact models as Rust `serde` types.
+
+### `bil-client`
+
+Implemented today. Provides the Rust async client for AXLE-compatible proof APIs, including health checks, environment discovery, and typed endpoint helpers.
+
+### `bil-cli`
+
+Implemented today. Provides the first `bil` commands:
+
+```bash
+bil status
+bil environments
+bil axle verify-proof ./proof.lean --formal-statement "..." --environment lean-4.28.0
+bil axle check ./proof.lean --environment lean-4.28.0
+bil axle extract-decls ./proof.lean --environment lean-4.28.0
+bil axle normalize ./proof.lean --environment lean-4.28.0
+```
+
+The existing Python CLI exposes the same path through:
+
+```bash
+axle bil ...
 ```
 
 ---
@@ -312,14 +332,6 @@ bil-kernel/
 ### `bil-core`
 
 Core domain types for evidence records, institutional events, decision objects, and assurance metadata.
-
-### `bil-axle`
-
-AXLE-compatible artifact and response models.
-
-### `bil-client`
-
-Rust async client for interacting with AXLE-compatible proof APIs.
 
 ### `bil-schema`
 
@@ -361,17 +373,29 @@ Legal governance, liability, compliance, and evidentiary metadata.
 
 Machine-readable and human-readable reports.
 
-### `bil-cli`
-
-Command-line interface.
-
 ### `bil-wasm`
 
 Portable verifier target for browser, embedded, and client-side workflows.
 
 ---
 
-## CLI Concept
+## CLI Today
+
+```bash
+bil status
+bil environments
+bil axle verify-proof ./proof.lean --formal-statement "1 = 1" --environment lean-4.28.0
+bil axle check ./proof.lean --environment lean-4.28.0
+bil axle extract-decls ./proof.lean --environment lean-4.28.0
+bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove_sections
+axle bil status
+```
+
+The bundle, receipt, verification, and report commands remain roadmap work.
+
+---
+
+## CLI Roadmap
 
 ```bash
 bil init
@@ -390,34 +414,34 @@ bil report decision.bil --format sarif
 
 ## Example Workflow
 
-Import an AXLE-compatible proof response:
+Check service health:
 
 ```bash
-bil import axle ./examples/axle-proof-output/verify-proof-response.json
+bil status
 ```
 
-Create a BIL evidence bundle:
+List available environments:
 
 ```bash
-bil bundle create ./examples/axle-proof-output --out proof-assurance.bil
+bil environments
 ```
 
-Issue a receipt:
+Verify a proof through the Rust client:
 
 ```bash
-bil receipt issue proof-assurance.bil
+bil axle verify-proof ./proof.lean --formal-statement "1 = 1" --environment lean-4.28.0
 ```
 
-Verify the bundle:
+Normalize Lean code:
 
 ```bash
-bil verify proof-assurance.bil
+bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove_sections
 ```
 
-Generate an institutional report:
+Run the same Rust CLI through the legacy Python entrypoint:
 
 ```bash
-bil report proof-assurance.bil --format markdown
+axle bil axle check ./proof.lean --environment lean-4.28.0
 ```
 
 ---
@@ -572,18 +596,24 @@ The evidence bundle preserves its institutional meaning after transport through 
 
 BIL Kernel is early-stage infrastructure.
 
-Initial development priorities:
+Implemented in this bootstrap:
 
 1. Rust workspace scaffold
-2. AXLE-compatible response models
-3. canonical JSON serialization
-4. deterministic hashing
-5. `.bil` bundle manifest
-6. receipt format
-7. verification CLI
-8. Markdown and JSON reports
-9. institutional metadata profiles
-10. example evidence bundles
+2. AXLE-compatible response models in `bil-axle`
+3. Rust async AXLE client in `bil-client`
+4. Initial Rust CLI in `bil-cli`
+5. Python compatibility bridge via `axle bil ...`
+
+Next development priorities:
+
+1. canonical JSON serialization
+2. deterministic hashing
+3. `.bil` bundle manifest
+4. receipt format
+5. bundle verification
+6. Markdown and JSON reports
+7. institutional metadata profiles
+8. example evidence bundles
 
 ---
 
