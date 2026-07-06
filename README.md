@@ -319,7 +319,14 @@ bil-kernel/
 │   ├── bil-client/            # Implemented Rust async client for AXLE-compatible APIs
 │   └── bil-cli/               # Implemented Rust CLI
 ├── schemas/v0/                # Committed Phase 1, Phase 2, and Phase 3 schema artifacts
-├── specs/                     # Committed bundle, verification, receipt, and institutional specs
+├── specs/                     # Committed bundle, verification, receipt, institutional, and interop specs
+├── templates/reports/         # Committed audit and regulatory report templates
+├── scripts/refresh_phase5_examples.sh
+├── examples/
+│   ├── keys/                  # Deterministic non-production Phase 5 signing fixtures
+│   ├── axle-proof-artifact/   # AXLE artifact source + signed embedded-receipt bundle
+│   ├── lean-proof-bundle/     # Lean source + captured response + detached-receipt bundle
+│   └── ai-decision-bundle/    # Institutionalized AI decision example + rendered reports
 ├── axle/                      # Legacy Python AXLE SDK and CLI, including `axle bil ...`
 ├── docs/                      # Existing Python-oriented documentation during transition
 ├── tests/                     # Python bridge and legacy AXLE tests
@@ -418,14 +425,6 @@ Implemented today. Validates legal-governance linkage rules against banking, ins
 
 ---
 
-## Planned Crates
-
-### `bil-wasm`
-
-Portable verifier target for browser, embedded, and client-side workflows.
-
----
-
 ## CLI Today
 
 ```bash
@@ -444,7 +443,7 @@ bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove
 axle bil status
 ```
 
-WASM targets, archive packaging, and richer interop remain roadmap work.
+Archive packaging and a first-class report-generation CLI remain roadmap work.
 
 ---
 
@@ -520,6 +519,14 @@ Run the same Rust CLI through the legacy Python entrypoint:
 
 ```bash
 axle bil axle check ./proof.lean --environment lean-4.28.0
+```
+
+Inspect the committed Phase 5 interoperability fixtures:
+
+```bash
+bil bundle inspect ./examples/axle-proof-artifact/axle-proof-artifact.bil --trust-key ./examples/axle-proof-artifact/trust-key.der
+bil bundle inspect ./examples/lean-proof-bundle/lean-proof-bundle.bil --receipt ./examples/lean-proof-bundle/lean-proof-bundle.receipt.json --trust-key ./examples/lean-proof-bundle/trust-key.der
+bil bundle inspect ./examples/ai-decision-bundle/ai-decision-bundle.bil --trust-key ./examples/ai-decision-bundle/trust-key.der
 ```
 
 ---
@@ -690,14 +697,15 @@ Implemented in this bootstrap:
 12. Markdown report rendering in `bil-report`
 13. Expanded Rust CLI in `bil-cli`
 14. Python compatibility bridge via `axle bil ...`
+15. Interoperability example bundles, receipts, and report templates
 
 Next development priorities:
 
-1. example evidence bundles
-2. browser and embedded verification targets
-3. archive packaging and portability options
-4. richer interoperability outputs
-5. WASM verifier hardening
+1. archive packaging and portability options
+2. first-class report generation
+3. richer interoperability outputs beyond committed fixtures
+4. example corpus expansion
+5. workflow hardening around committed fixtures
 
 ---
 
@@ -741,14 +749,11 @@ Implemented:
 * AI assurance profile
 * risk and control metadata
 
-### Phase 4 — WASM Verifier
-
-* browser verifier
-* client-side bundle inspection
-* embedded verification mode
-* no-upload verification path
+WASM verifier work is currently out of scope for the active roadmap.
 
 ### Phase 5 — Assurance Interop
+
+Implemented:
 
 * AXLE-compatible proof artifact examples
 * Lean proof bundle examples

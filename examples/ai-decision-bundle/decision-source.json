@@ -1,0 +1,9 @@
+{
+  "decision_id": "decision-2026-001",
+  "workflow": "small-business-credit-review",
+  "applicant_id": "counterparty-acme-fabrication",
+  "model_identifier": "credit-policy-screen-v2",
+  "decision_outcome": "conditional-approval",
+  "reviewer": "underwriting-committee-a",
+  "evidence_goal": "portable institutional assurance bundle for downstream audit and regulatory review"
+}

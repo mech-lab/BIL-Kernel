@@ -1,0 +1,43 @@
+{
+  "schema_version": "v0",
+  "risks": [
+    {
+      "risk_id": "risk-model-drift",
+      "title": "Model drift in policy score interpretation",
+      "category": "model-risk",
+      "severity": "high",
+      "status": "open",
+      "owner": "model-risk-office",
+      "description": "The scoring model could drift away from the policy threshold assumptions used in the decision review workflow.",
+      "linked_control_ids": [
+        "control-human-review",
+        "control-evidence-retention"
+      ],
+      "linked_profile_sections": [
+        "banking",
+        "insurance",
+        "legal_governance",
+        "ai_assurance"
+      ]
+    },
+    {
+      "risk_id": "risk-missing-human-review",
+      "title": "Decision released without mandatory human review",
+      "category": "operational",
+      "severity": "high",
+      "status": "monitored",
+      "owner": "credit-operations",
+      "description": "A workflow failure could bypass the required committee review step before a decision is released externally.",
+      "linked_control_ids": [
+        "control-human-review",
+        "control-evidence-retention"
+      ],
+      "linked_profile_sections": [
+        "banking",
+        "insurance",
+        "legal_governance",
+        "ai_assurance"
+      ]
+    }
+  ]
+}

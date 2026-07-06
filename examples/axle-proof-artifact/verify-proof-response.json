@@ -1,0 +1,28 @@
+{
+  "okay": true,
+  "content": "import Mathlib\n\ntheorem bil_axle_artifact_example (n : Nat) : n + 0 = n := by\n  simpa using Nat.add_zero n\n",
+  "lean_messages": {
+    "errors": [],
+    "warnings": [],
+    "infos": [
+      "proof checked successfully"
+    ]
+  },
+  "tool_messages": {
+    "errors": [],
+    "warnings": [],
+    "infos": [
+      "artifact captured for interoperability example"
+    ]
+  },
+  "failed_declarations": [],
+  "timings": {
+    "parse": 3,
+    "elab": 11,
+    "total": 14
+  },
+  "info": {
+    "environment": "lean-4.28.0",
+    "artifact_source": "phase5-example"
+  }
+}

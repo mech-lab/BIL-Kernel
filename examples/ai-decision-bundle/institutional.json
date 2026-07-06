@@ -1,0 +1,207 @@
+{
+  "schema_version": "v0",
+  "banking": {
+    "exposure_id": "exp-credit-2026-001",
+    "decision_context": "Small-business credit review for a conditional approval workflow.",
+    "counterparty": "Acme Fabrication LLC",
+    "product_type": "working-capital-line",
+    "currency": "USD",
+    "exposure_amount": "250000",
+    "decision_outcome": "conditional-approval",
+    "review_status": "committee-reviewed",
+    "governing_policy_refs": [
+      "credit-policy-v3",
+      "model-risk-standard-v1"
+    ],
+    "referenced_risk_ids": [
+      "risk-model-drift",
+      "risk-missing-human-review"
+    ],
+    "referenced_control_ids": [
+      "control-human-review",
+      "control-evidence-retention"
+    ],
+    "risk_summaries": [
+      {
+        "risk_id": "risk-model-drift",
+        "title": "Model drift in policy score interpretation",
+        "severity": "high",
+        "status": "open"
+      },
+      {
+        "risk_id": "risk-missing-human-review",
+        "title": "Decision released without mandatory human review",
+        "severity": "high",
+        "status": "monitored"
+      }
+    ],
+    "control_summaries": [
+      {
+        "control_id": "control-human-review",
+        "title": "Human underwriting review",
+        "control_type": "review",
+        "status": "active"
+      },
+      {
+        "control_id": "control-evidence-retention",
+        "title": "Evidence retention and trace export",
+        "control_type": "retention",
+        "status": "active"
+      }
+    ]
+  },
+  "insurance": {
+    "coverage_case_id": "cov-prof-liability-2026-001",
+    "coverage_context": "Professional liability review for AI-assisted credit decisions.",
+    "insured_party": "Acme Fabrication LLC",
+    "coverage_type": "professional-liability",
+    "insured_amount": "250000",
+    "decision_outcome": "coverage-confirmed",
+    "review_status": "underwriter-reviewed",
+    "policy_refs": [
+      "prof-liability-policy-v2"
+    ],
+    "referenced_risk_ids": [
+      "risk-model-drift",
+      "risk-missing-human-review"
+    ],
+    "referenced_control_ids": [
+      "control-human-review",
+      "control-evidence-retention"
+    ],
+    "risk_summaries": [
+      {
+        "risk_id": "risk-model-drift",
+        "title": "Model drift in policy score interpretation",
+        "severity": "high",
+        "status": "open"
+      },
+      {
+        "risk_id": "risk-missing-human-review",
+        "title": "Decision released without mandatory human review",
+        "severity": "high",
+        "status": "monitored"
+      }
+    ],
+    "control_summaries": [
+      {
+        "control_id": "control-human-review",
+        "title": "Human underwriting review",
+        "control_type": "review",
+        "status": "active"
+      },
+      {
+        "control_id": "control-evidence-retention",
+        "title": "Evidence retention and trace export",
+        "control_type": "retention",
+        "status": "active"
+      }
+    ]
+  },
+  "legal_governance": {
+    "matter_id": "matter-governance-2026-001",
+    "rights_and_duties_summary": "The institution must preserve adverse-decision evidence, document reviewer intervention, and maintain traceable supporting artifacts.",
+    "liability_posture": "controlled-with-human-approval",
+    "compliance_posture": "internally-compliant",
+    "governing_authority_refs": [
+      "internal-governance-manual-v4",
+      "records-retention-standard-v2"
+    ],
+    "linked_exposure_ids": [
+      "exp-credit-2026-001"
+    ],
+    "linked_coverage_case_ids": [
+      "cov-prof-liability-2026-001"
+    ],
+    "linked_assurance_case_ids": [
+      "assurance-credit-2026-001"
+    ],
+    "referenced_risk_ids": [
+      "risk-model-drift",
+      "risk-missing-human-review"
+    ],
+    "referenced_control_ids": [
+      "control-human-review",
+      "control-evidence-retention"
+    ],
+    "risk_summaries": [
+      {
+        "risk_id": "risk-model-drift",
+        "title": "Model drift in policy score interpretation",
+        "severity": "high",
+        "status": "open"
+      },
+      {
+        "risk_id": "risk-missing-human-review",
+        "title": "Decision released without mandatory human review",
+        "severity": "high",
+        "status": "monitored"
+      }
+    ],
+    "control_summaries": [
+      {
+        "control_id": "control-human-review",
+        "title": "Human underwriting review",
+        "control_type": "review",
+        "status": "active"
+      },
+      {
+        "control_id": "control-evidence-retention",
+        "title": "Evidence retention and trace export",
+        "control_type": "retention",
+        "status": "active"
+      }
+    ]
+  },
+  "ai_assurance": {
+    "assurance_case_id": "assurance-credit-2026-001",
+    "system_identifier": "credit-review-orchestrator",
+    "model_identifier": "credit-policy-screen-v2",
+    "decision_traceability": "Decision source, proof artifact, risk registry, and control registry are linked through the bundle manifest.",
+    "human_review_status": "completed",
+    "assurance_outcome": "portable-evidence-ready",
+    "linked_axle_artifact_path": "axle.json",
+    "linked_exposure_ids": [
+      "exp-credit-2026-001"
+    ],
+    "linked_coverage_case_ids": [
+      "cov-prof-liability-2026-001"
+    ],
+    "referenced_risk_ids": [
+      "risk-model-drift",
+      "risk-missing-human-review"
+    ],
+    "referenced_control_ids": [
+      "control-human-review",
+      "control-evidence-retention"
+    ],
+    "risk_summaries": [
+      {
+        "risk_id": "risk-model-drift",
+        "title": "Model drift in policy score interpretation",
+        "severity": "high",
+        "status": "open"
+      },
+      {
+        "risk_id": "risk-missing-human-review",
+        "title": "Decision released without mandatory human review",
+        "severity": "high",
+        "status": "monitored"
+      }
+    ],
+    "control_summaries": [
+      {
+        "control_id": "control-human-review",
+        "title": "Human underwriting review",
+        "control_type": "review",
+        "status": "active"
+      },
+      {
+        "control_id": "control-evidence-retention",
+        "title": "Evidence retention and trace export",
+        "control_type": "retention",
+        "status": "active"
+      }
+    ]
+  }
+}

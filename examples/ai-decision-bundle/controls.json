@@ -1,0 +1,50 @@
+{
+  "schema_version": "v0",
+  "controls": [
+    {
+      "control_id": "control-human-review",
+      "title": "Human underwriting review",
+      "control_type": "review",
+      "status": "active",
+      "owner": "credit-committee",
+      "description": "A human reviewer signs off on the decision package before any external communication or booking action occurs.",
+      "evidence_paths": [
+        "axle.json"
+      ],
+      "mitigated_risk_ids": [
+        "risk-model-drift",
+        "risk-missing-human-review"
+      ],
+      "linked_profile_sections": [
+        "banking",
+        "insurance",
+        "legal_governance",
+        "ai_assurance"
+      ]
+    },
+    {
+      "control_id": "control-evidence-retention",
+      "title": "Evidence retention and trace export",
+      "control_type": "retention",
+      "status": "active",
+      "owner": "assurance-platform",
+      "description": "The decision workflow exports traceable bundle artifacts for downstream internal, audit, and external review.",
+      "evidence_paths": [
+        "axle.json",
+        "institutional.json",
+        "risk.json",
+        "controls.json"
+      ],
+      "mitigated_risk_ids": [
+        "risk-model-drift",
+        "risk-missing-human-review"
+      ],
+      "linked_profile_sections": [
+        "banking",
+        "insurance",
+        "legal_governance",
+        "ai_assurance"
+      ]
+    }
+  ]
+}

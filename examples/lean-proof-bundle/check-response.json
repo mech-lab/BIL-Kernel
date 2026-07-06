@@ -1,0 +1,28 @@
+{
+  "okay": true,
+  "content": "import Mathlib\n\ntheorem bil_phase5_commutes (a b : Nat) : a + b = b + a := by\n  exact Nat.add_comm a b\n",
+  "lean_messages": {
+    "errors": [],
+    "warnings": [],
+    "infos": [
+      "check completed"
+    ]
+  },
+  "tool_messages": {
+    "errors": [],
+    "warnings": [],
+    "infos": [
+      "captured from Lean proof interoperability example"
+    ]
+  },
+  "failed_declarations": [],
+  "timings": {
+    "parse": 4,
+    "elab": 9,
+    "total": 13
+  },
+  "info": {
+    "environment": "lean-4.28.0",
+    "source_path": "proof.lean"
+  }
+}
