@@ -25,14 +25,16 @@ Today, the repository provides:
 * canonical Rust data structures
 * a Rust AXLE-compatible client
 * a Rust CLI foundation
+* canonical JSON serialization
+* dual SHA-256 and BLAKE3 hashing
+* deterministic Merkle evidence trees
+* `.bil` directory bundle creation and inspection
+* committed `v0` schemas and bundle specs
 * a temporary Python compatibility bridge via `axle bil ...`
 
 The near-term kernel roadmap adds:
 
-* deterministic JSON serialization
-* Merkleized evidence bundles
 * cryptographic receipts
-* bundle verification
 * audit-ready reports
 * banking, insurance, and legal metadata profiles
 * broader CLI tooling for developers and assurance teams
@@ -189,7 +191,19 @@ Institutional Verification Report
 
 A `.bil` bundle is a portable evidence object.
 
-It can contain:
+In Phase 1, the canonical format is an unpacked directory ending in `.bil/`.
+
+Today it contains:
+
+```text
+<name>.bil/
+├── axle.json
+├── bundle.json
+├── manifest.json
+└── merkle.json
+```
+
+Future phases may extend the payload set with files such as:
 
 ```text
 bundle.json
@@ -284,8 +298,15 @@ bil-kernel/
 ├── Cargo.toml
 ├── crates/
 │   ├── bil-axle/              # Implemented Rust AXLE-compatible response models
+│   ├── bil-core/              # Implemented evidence-kernel domain types
+│   ├── bil-schema/            # Implemented v0 JSON Schema generation
+│   ├── bil-hash/              # Implemented canonical JSON and dual digests
+│   ├── bil-merkle/            # Implemented deterministic Merkle trees
+│   ├── bil-bundle/            # Implemented `.bil` bundle create / inspect
 │   ├── bil-client/            # Implemented Rust async client for AXLE-compatible APIs
-│   └── bil-cli/               # Implemented Rust CLI (`bil status`, `bil environments`, `bil axle ...`)
+│   └── bil-cli/               # Implemented Rust CLI
+├── schemas/v0/                # Committed Phase 1 schema artifacts
+├── specs/                     # Committed bundle, manifest, merkle, and AXLE profile specs
 ├── axle/                      # Legacy Python AXLE SDK and CLI, including `axle bil ...`
 ├── docs/                      # Existing Python-oriented documentation during transition
 ├── tests/                     # Python bridge and legacy AXLE tests
@@ -313,6 +334,9 @@ Implemented today. Provides the first `bil` commands:
 ```bash
 bil status
 bil environments
+bil hash ./payload.json --canonical-json
+bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
+bil bundle inspect ./proof.bil
 bil axle verify-proof ./proof.lean --formal-statement "..." --environment lean-4.28.0
 bil axle check ./proof.lean --environment lean-4.28.0
 bil axle extract-decls ./proof.lean --environment lean-4.28.0
@@ -327,31 +351,35 @@ axle bil ...
 
 ---
 
-## Planned Crates
+## Phase 1 Crates
 
 ### `bil-core`
 
-Core domain types for evidence records, institutional events, decision objects, and assurance metadata.
+Implemented today. Defines `AxleEvidenceRecord`, manifest entries, bundle descriptors, Merkle document types, logical-path normalization, and typed AXLE artifact dispatch.
 
 ### `bil-schema`
 
-Canonical schemas and deterministic serialization rules.
+Implemented today. Generates the committed `schemas/v0/*.schema.json` artifacts from the Rust types that define the bundle surface.
 
 ### `bil-hash`
 
-Content addressing, hashing utilities, and canonical digest generation.
+Implemented today. Provides canonical JSON serialization plus dual SHA-256 and BLAKE3 digests for bundle-controlled documents.
 
 ### `bil-merkle`
 
-Merkle DAG construction for evidence graphs.
+Implemented today. Builds deterministic manifest-backed Merkle trees with stable leaf ordering and odd-node duplication rules.
+
+### `bil-bundle`
+
+Implemented today. Creates and inspects unpacked `.bil/` directories containing `axle.json`, `bundle.json`, `manifest.json`, and `merkle.json`.
+
+---
+
+## Planned Crates
 
 ### `bil-receipt`
 
 Cryptographic receipt generation and validation.
-
-### `bil-bundle`
-
-Creation, packaging, unpacking, and inspection of `.bil` bundles.
 
 ### `bil-verify`
 
@@ -384,6 +412,9 @@ Portable verifier target for browser, embedded, and client-side workflows.
 ```bash
 bil status
 bil environments
+bil hash ./payload.json --canonical-json
+bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
+bil bundle inspect ./proof.bil
 bil axle verify-proof ./proof.lean --formal-statement "1 = 1" --environment lean-4.28.0
 bil axle check ./proof.lean --environment lean-4.28.0
 bil axle extract-decls ./proof.lean --environment lean-4.28.0
@@ -391,7 +422,7 @@ bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove
 axle bil status
 ```
 
-The bundle, receipt, verification, and report commands remain roadmap work.
+Receipts, signatures, policy/risk/legal profiles, archive packaging, and report generation remain roadmap work.
 
 ---
 
@@ -400,11 +431,8 @@ The bundle, receipt, verification, and report commands remain roadmap work.
 ```bash
 bil init
 bil import axle ./verify-proof-response.json
-bil bundle create ./evidence --out decision.bil
 bil receipt issue decision.bil
 bil verify decision.bil
-bil inspect decision.bil
-bil hash decision.bil
 bil report decision.bil --format markdown
 bil report decision.bil --format json
 bil report decision.bil --format sarif
@@ -424,6 +452,24 @@ List available environments:
 
 ```bash
 bil environments
+```
+
+Hash a JSON document in canonical mode:
+
+```bash
+bil hash ./verify-proof-response.json --canonical-json
+```
+
+Create a deterministic Phase 1 `.bil` evidence directory from a typed AXLE payload:
+
+```bash
+bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
+```
+
+Inspect and verify the bundle:
+
+```bash
+bil bundle inspect ./proof.bil
 ```
 
 Verify a proof through the Rust client:
@@ -601,19 +647,22 @@ Implemented in this bootstrap:
 1. Rust workspace scaffold
 2. AXLE-compatible response models in `bil-axle`
 3. Rust async AXLE client in `bil-client`
-4. Initial Rust CLI in `bil-cli`
-5. Python compatibility bridge via `axle bil ...`
+4. Evidence-kernel domain types in `bil-core`
+5. Canonical schemas in `bil-schema`
+6. Deterministic serialization and dual hashing in `bil-hash`
+7. Merkle evidence graph construction in `bil-merkle`
+8. `.bil` bundle manifest and bundle inspection in `bil-bundle`
+9. Expanded Rust CLI in `bil-cli`
+10. Python compatibility bridge via `axle bil ...`
 
 Next development priorities:
 
-1. canonical JSON serialization
-2. deterministic hashing
-3. `.bil` bundle manifest
-4. receipt format
-5. bundle verification
-6. Markdown and JSON reports
-7. institutional metadata profiles
-8. example evidence bundles
+1. receipt format
+2. signature validation
+3. richer verification reports
+4. institutional metadata profiles
+5. example evidence bundles
+6. browser and embedded verification targets
 
 ---
 
@@ -628,12 +677,14 @@ Next development priorities:
 
 ### Phase 1 — Evidence Kernel
 
+Implemented:
+
 * canonical schemas
 * deterministic serialization
 * hashing
 * Merkle evidence graph
 * bundle manifest
-* `.bil` bundle format
+* `.bil` bundle directory format
 
 ### Phase 2 — Receipts and Verification
 
