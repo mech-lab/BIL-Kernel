@@ -1,6 +1,11 @@
 [workspace]
 members = [
     "crates/bil-axle",
+    "crates/bil-core",
+    "crates/bil-schema",
+    "crates/bil-hash",
+    "crates/bil-merkle",
+    "crates/bil-bundle",
     "crates/bil-client",
     "crates/bil-cli",
 ]

@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
+use bil_bundle::{BundleBuilder, BundleReader};
 use bil_client::AxleClient;
+use bil_core::{AxleArtifactKind, BundleKind, DigestSet};
+use bil_hash::{canonical_json_slice, digest_bytes};
 use clap::{ArgAction, Args, Parser, Subcommand};
 use serde::Serialize;
 use std::fs;
@@ -21,6 +24,8 @@ enum Command {
     Status(StatusArgs),
     Environments(EnvironmentsArgs),
     Axle(AxleArgs),
+    Hash(HashArgs),
+    Bundle(BundleArgs),
 }
 
 #[derive(Debug, Args)]
@@ -36,9 +41,29 @@ struct EnvironmentsArgs {
 }
 
 #[derive(Debug, Args)]
+struct HashArgs {
+    #[arg(value_name = "PATH")]
+    path: String,
+    #[arg(long, action = ArgAction::SetTrue)]
+    canonical_json: bool,
+}
+
+#[derive(Debug, Args)]
 struct AxleArgs {
     #[command(subcommand)]
     command: AxleCommand,
+}
+
+#[derive(Debug, Args)]
+struct BundleArgs {
+    #[command(subcommand)]
+    command: BundleCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum BundleCommand {
+    Create(BundleCreateArgs),
+    Inspect(BundleInspectArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -109,11 +134,31 @@ struct NormalizeArgs {
     common: CommonArgs,
 }
 
+#[derive(Debug, Args)]
+struct BundleCreateArgs {
+    #[arg(long, value_name = "FILE")]
+    axle: String,
+    #[arg(long)]
+    axle_kind: String,
+    #[arg(long, value_name = "DIR")]
+    out: String,
+}
+
+#[derive(Debug, Args)]
+struct BundleInspectArgs {
+    #[arg(value_name = "DIR")]
+    bundle_path: String,
+}
+
 #[derive(Debug, Args, Default)]
 struct CommonArgs {
     #[arg(long, action = ArgAction::SetTrue, conflicts_with = "no_ignore_imports")]
     ignore_imports: bool,
-    #[arg(long = "no-ignore-imports", action = ArgAction::SetTrue, conflicts_with = "ignore_imports")]
+    #[arg(
+        long = "no-ignore-imports",
+        action = ArgAction::SetTrue,
+        conflicts_with = "ignore_imports"
+    )]
     no_ignore_imports: bool,
     #[arg(long)]
     timeout_seconds: Option<f64>,
@@ -143,19 +188,40 @@ async fn main() -> ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<ExitCode> {
-    let client = AxleClient::new(cli.url, None, None, None)?;
     match cli.command {
         Command::Status(args) => {
+            let client = AxleClient::new(cli.url, None, None, None)?;
             let status = client.check_status(args.timeout_seconds).await?;
             print_json(&status)?;
             Ok(ExitCode::SUCCESS)
         }
         Command::Environments(args) => {
+            let client = AxleClient::new(cli.url, None, None, None)?;
             let environments = client.environments(args.timeout_seconds).await?;
             print_json(&environments)?;
             Ok(ExitCode::SUCCESS)
         }
-        Command::Axle(args) => run_axle_command(&client, args.command).await,
+        Command::Axle(args) => {
+            let client = AxleClient::new(cli.url, None, None, None)?;
+            run_axle_command(&client, args.command).await
+        }
+        Command::Hash(args) => {
+            let bytes = read_bytes_or_stdin(&args.path)?;
+            let effective = if args.canonical_json {
+                canonical_json_slice(&bytes)?
+            } else {
+                bytes
+            };
+            let output = HashOutput {
+                path: args.path,
+                canonical_json: args.canonical_json,
+                byte_length: effective.len() as u64,
+                digests: digest_bytes(&effective),
+            };
+            print_json(&output)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Bundle(args) => run_bundle_command(args.command),
     }
 }
 
@@ -240,6 +306,38 @@ async fn run_axle_command(client: &AxleClient, command: AxleCommand) -> Result<E
     }
 }
 
+fn run_bundle_command(command: BundleCommand) -> Result<ExitCode> {
+    match command {
+        BundleCommand::Create(args) => {
+            let axle_bytes = fs::read(&args.axle)
+                .with_context(|| format!("failed to read AXLE payload from {}", args.axle))?;
+            let axle_kind: AxleArtifactKind = args.axle_kind.parse()?;
+            let materialized = BundleBuilder::new().create_axle_bundle(
+                axle_kind,
+                &axle_bytes,
+                PathBuf::from(&args.out),
+            )?;
+            let output = BundleCreateOutput {
+                output_dir: materialized.output_dir.display().to_string(),
+                bundle_kind: materialized.descriptor.bundle_kind,
+                bundle_id: materialized.descriptor.bundle_id,
+                payload_count: materialized.manifest.entries.len(),
+                merkle_roots: DigestSet {
+                    sha256: materialized.merkle.trees.sha256.root,
+                    blake3: materialized.merkle.trees.blake3.root,
+                },
+            };
+            print_json(&output)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        BundleCommand::Inspect(args) => {
+            let inspection = BundleReader::open(PathBuf::from(&args.bundle_path))?.inspect()?;
+            print_json(&inspection)?;
+            Ok(ExitCode::SUCCESS)
+        }
+    }
+}
+
 fn read_file_or_stdin(path: &str) -> Result<String> {
     if path == "-" {
         let mut buffer = String::new();
@@ -251,6 +349,18 @@ fn read_file_or_stdin(path: &str) -> Result<String> {
 
     fs::read_to_string(PathBuf::from(path))
         .with_context(|| format!("failed to read content from {path}"))
+}
+
+fn read_bytes_or_stdin(path: &str) -> Result<Vec<u8>> {
+    if path == "-" {
+        let mut buffer = Vec::new();
+        io::stdin()
+            .read_to_end(&mut buffer)
+            .context("failed to read stdin")?;
+        return Ok(buffer);
+    }
+
+    fs::read(PathBuf::from(path)).with_context(|| format!("failed to read bytes from {path}"))
 }
 
 fn print_json<T>(value: &T) -> Result<()>
@@ -274,4 +384,21 @@ fn list_option(values: Vec<String>) -> Option<Vec<String>> {
 
 fn bool_option(value: bool) -> Option<bool> {
     if value { Some(true) } else { None }
+}
+
+#[derive(Debug, Serialize)]
+struct HashOutput {
+    path: String,
+    canonical_json: bool,
+    byte_length: u64,
+    digests: DigestSet,
+}
+
+#[derive(Debug, Serialize)]
+struct BundleCreateOutput {
+    output_dir: String,
+    bundle_kind: BundleKind,
+    bundle_id: String,
+    payload_count: usize,
+    merkle_roots: DigestSet,
 }

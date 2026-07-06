@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AxleEvidenceRecord",
+  "type": "object",
+  "required": [
+    "artifact_kind",
+    "payload",
+    "schema_version"
+  ],
+  "properties": {
+    "artifact_kind": {
+      "$ref": "#/definitions/AxleArtifactKind"
+    },
+    "payload": true,
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "AxleArtifactKind": {
+      "type": "string",
+      "enum": [
+        "VerifyProof",
+        "Check",
+        "Document",
+        "ExtractDecls",
+        "ExtractTheorems",
+        "Rename",
+        "Merge",
+        "Theorem2Sorry",
+        "Theorem2Lemma",
+        "SimplifyTheorems",
+        "RepairProofs",
+        "Have2Lemma",
+        "Have2Sorry",
+        "Sorry2Lemma",
+        "Disprove",
+        "Normalize"
+      ]
+    }
+  }
+}

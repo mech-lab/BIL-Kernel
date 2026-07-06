@@ -11,7 +11,10 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+bil-bundle = { path = "../bil-bundle" }
+bil-core = { path = "../bil-core" }
 bil-client = { path = "../bil-client" }
+bil-hash = { path = "../bil-hash" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -19,6 +22,8 @@ tokio.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"
+bil-bundle = { path = "../bil-bundle" }
+bil-core = { path = "../bil-core" }
 mockito = "1"
 predicates = "3"
 tempfile = "3"

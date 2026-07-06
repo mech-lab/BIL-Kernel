@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MerkleDocument",
+  "type": "object",
+  "required": [
+    "leaf_order",
+    "leaves",
+    "schema_version",
+    "trees"
+  ],
+  "properties": {
+    "leaf_order": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "leaves": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MerkleLeaf"
+      }
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "trees": {
+      "$ref": "#/definitions/MerkleTrees"
+    }
+  },
+  "definitions": {
+    "DigestAlgorithm": {
+      "type": "string",
+      "enum": [
+        "sha256",
+        "blake3"
+      ]
+    },
+    "DigestSet": {
+      "type": "object",
+      "required": [
+        "blake3",
+        "sha256"
+      ],
+      "properties": {
+        "blake3": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "MerkleLeaf": {
+      "type": "object",
+      "required": [
+        "digests",
+        "logical_path"
+      ],
+      "properties": {
+        "digests": {
+          "$ref": "#/definitions/DigestSet"
+        },
+        "logical_path": {
+          "type": "string"
+        }
+      }
+    },
+    "MerkleLevel": {
+      "type": "object",
+      "required": [
+        "level",
+        "nodes"
+      ],
+      "properties": {
+        "level": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "MerkleTreeDocument": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "levels",
+        "root"
+      ],
+      "properties": {
+        "algorithm": {
+          "$ref": "#/definitions/DigestAlgorithm"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MerkleLevel"
+          }
+        },
+        "root": {
+          "type": "string"
+        }
+      }
+    },
+    "MerkleTrees": {
+      "type": "object",
+      "required": [
+        "blake3",
+        "sha256"
+      ],
+      "properties": {
+        "blake3": {
+          "$ref": "#/definitions/MerkleTreeDocument"
+        },
+        "sha256": {
+          "$ref": "#/definitions/MerkleTreeDocument"
+        }
+      }
+    }
+  }
+}

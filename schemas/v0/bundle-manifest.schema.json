@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BundleManifest",
+  "type": "object",
+  "required": [
+    "entries",
+    "schema_version"
+  ],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ManifestEntry"
+      }
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "CanonicalizationMode": {
+      "type": "string",
+      "enum": [
+        "json-canonical-v0",
+        "raw-bytes-v0"
+      ]
+    },
+    "DigestSet": {
+      "type": "object",
+      "required": [
+        "blake3",
+        "sha256"
+      ],
+      "properties": {
+        "blake3": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "ManifestEntry": {
+      "type": "object",
+      "required": [
+        "byte_length",
+        "canonicalization",
+        "digests",
+        "logical_path",
+        "media_type"
+      ],
+      "properties": {
+        "byte_length": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "canonicalization": {
+          "$ref": "#/definitions/CanonicalizationMode"
+        },
+        "digests": {
+          "$ref": "#/definitions/DigestSet"
+        },
+        "logical_path": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
