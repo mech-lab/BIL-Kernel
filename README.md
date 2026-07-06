@@ -22,15 +22,15 @@ BIL Kernel converts AI-enabled decisions and AXLE-compatible proof outputs into 
 
 It provides:
 
-- canonical Rust data structures
-- deterministic JSON serialization
-- AXLE-compatible artifact ingestion
-- Merkleized evidence bundles
-- cryptographic receipts
-- bundle verification
-- audit-ready reports
-- banking, insurance, and legal metadata profiles
-- CLI tooling for developers and assurance teams
+* canonical Rust data structures
+* deterministic JSON serialization
+* AXLE-compatible artifact ingestion
+* Merkleized evidence bundles
+* cryptographic receipts
+* bundle verification
+* audit-ready reports
+* banking, insurance, and legal metadata profiles
+* CLI tooling for developers and assurance teams
 
 The kernel is designed to answer one institutional question:
 
@@ -102,16 +102,16 @@ BIL Kernel is based on a tetrahedral model of institutional trust.
 
 The base consists of:
 
-| Domain | Institutional Function |
-|---|---|
-| Banking | Capital exposure, credit workflow, financial infrastructure |
-| Insurance | Risk transfer, underwriting logic, loss protection |
-| Legal Governance | Rights, duties, liability, compliance boundaries |
+| Domain           | Institutional Function                                      |
+| ---------------- | ----------------------------------------------------------- |
+| Banking          | Capital exposure, credit workflow, financial infrastructure |
+| Insurance        | Risk transfer, underwriting logic, loss protection          |
+| Legal Governance | Rights, duties, liability, compliance boundaries            |
 
 The apex is:
 
-| Apex | Function |
-|---|---|
+| Apex         | Function                                  |
+| ------------ | ----------------------------------------- |
 | AI Assurance | Verifiable trust for AI-enabled decisions |
 
 BIL Kernel operationalizes the apex by producing institutional evidence bundles.
@@ -142,15 +142,15 @@ Assurance artifact
 
 It accumulates:
 
-- financial exposure
-- actuarial risk
-- legal interpretation
-- compliance obligations
-- control evidence
-- audit requirements
-- liability boundaries
+* financial exposure
+* actuarial risk
+* legal interpretation
+* compliance obligations
+* control evidence
+* audit requirements
+* liability boundaries
 
-BIL Kernel measures whether the decision's evidentiary meaning is preserved across that institutional loop.
+BIL Kernel measures whether the decision’s evidentiary meaning is preserved across that institutional loop.
 
 Assurance is achieved when the decision returns as a verifiable bundle whose provenance, context, controls, and accountability remain intact.
 
@@ -206,13 +206,13 @@ The bundle preserves the institutional context around an AI-enabled decision.
 
 It is designed to be:
 
-- deterministic
-- content-addressed
-- tamper-evident
-- auditable
-- machine-verifiable
-- portable across institutions
-- suitable for banking, insurance, legal, and regulatory workflows
+* deterministic
+* content-addressed
+* tamper-evident
+* auditable
+* machine-verifiable
+* portable across institutions
+* suitable for banking, insurance, legal, and regulatory workflows
 
 ---
 
@@ -426,16 +426,16 @@ bil report proof-assurance.bil --format markdown
 
 BIL Kernel is designed to answer infrastructure-grade assurance questions:
 
-| Question | Kernel Function |
-|---|---|
-| Was the artifact altered? | Hash verification |
-| Was the evidence preserved? | Bundle verification |
-| Was the proof result captured? | AXLE artifact ingestion |
-| Was provenance preserved? | Manifest and metadata validation |
-| Was the policy context included? | Policy profile validation |
-| Was legal context included? | Legal metadata validation |
-| Was risk context included? | Risk metadata validation |
-| Can another party inspect it? | Portable bundle format |
+| Question                                   | Kernel Function                  |
+| ------------------------------------------ | -------------------------------- |
+| Was the artifact altered?                  | Hash verification                |
+| Was the evidence preserved?                | Bundle verification              |
+| Was the proof result captured?             | AXLE artifact ingestion          |
+| Was provenance preserved?                  | Manifest and metadata validation |
+| Was the policy context included?           | Policy profile validation        |
+| Was legal context included?                | Legal metadata validation        |
+| Was risk context included?                 | Risk metadata validation         |
+| Can another party inspect it?              | Portable bundle format           |
 | Can the receipt be verified independently? | Cryptographic receipt validation |
 
 ---
@@ -444,42 +444,42 @@ BIL Kernel is designed to answer infrastructure-grade assurance questions:
 
 ### Banking
 
-- credit decision evidence
-- SBA lending workflow assurance
-- adverse action record preservation
-- vendor AI review
-- model risk management
-- fraud review audit trails
-- portfolio decision evidence
+* credit decision evidence
+* SBA lending workflow assurance
+* adverse action record preservation
+* vendor AI review
+* model risk management
+* fraud review audit trails
+* portfolio decision evidence
 
 ### Insurance
 
-- AI risk underwriting
-- professional liability review
-- claims evidence reconstruction
-- control-quality assessment
-- premium/risk adjustment
-- loss event documentation
+* AI risk underwriting
+* professional liability review
+* claims evidence reconstruction
+* control-quality assessment
+* premium/risk adjustment
+* loss event documentation
 
 ### Legal Governance
 
-- compliance evidence
-- contractual accountability
-- regulatory examination support
-- litigation hold support
-- duty-of-care documentation
-- adverse action defensibility
-- evidentiary preservation
+* compliance evidence
+* contractual accountability
+* regulatory examination support
+* litigation hold support
+* duty-of-care documentation
+* adverse action defensibility
+* evidentiary preservation
 
 ### AI Assurance
 
-- decision provenance
-- model context preservation
-- prompt/output traceability
-- proof artifact preservation
-- policy boundary verification
-- human review evidence
-- tamper-evident audit records
+* decision provenance
+* model context preservation
+* prompt/output traceability
+* proof artifact preservation
+* policy boundary verification
+* human review evidence
+* tamper-evident audit records
 
 ---
 
@@ -519,15 +519,15 @@ The evidence layer for AI assurance should be inspectable, testable, forkable, a
 
 BIL Kernel is not:
 
-- a chatbot
-- a model provider
-- a Lean replacement
-- a full theorem prover
-- a policy dashboard
-- a bank core system
-- an insurance rating engine
-- a legal advice engine
-- a compliance automation platform by itself
+* a chatbot
+* a model provider
+* a Lean replacement
+* a full theorem prover
+* a policy dashboard
+* a bank core system
+* an insurance rating engine
+* a legal advice engine
+* a compliance automation platform by itself
 
 BIL Kernel is the evidence substrate beneath those systems.
 
@@ -563,7 +563,7 @@ Hγ(E_d) ≈ 0
 Meaning:
 
 ```text
-The evidence bundle preserves its institutional meaning after transport through the banking-insurance-legal loop.
+The evidence bundle preserves its institutional meaning after transport through the banking–insurance–legal loop.
 ```
 
 ---
@@ -591,49 +591,49 @@ Initial development priorities:
 
 ### Phase 0 — Fork Boundary
 
-- establish Rust workspace
-- define crate layout
-- port AXLE response models into Rust
-- document AXLE compatibility profile
+* establish Rust workspace
+* define crate layout
+* port AXLE response models into Rust
+* document AXLE compatibility profile
 
 ### Phase 1 — Evidence Kernel
 
-- canonical schemas
-- deterministic serialization
-- hashing
-- Merkle evidence graph
-- bundle manifest
-- `.bil` bundle format
+* canonical schemas
+* deterministic serialization
+* hashing
+* Merkle evidence graph
+* bundle manifest
+* `.bil` bundle format
 
 ### Phase 2 — Receipts and Verification
 
-- receipt generation
-- signature validation
-- bundle verification
-- CLI verification reports
-- JSON and Markdown output
+* receipt generation
+* signature validation
+* bundle verification
+* CLI verification reports
+* JSON and Markdown output
 
 ### Phase 3 — Institutional Profiles
 
-- banking profile
-- insurance profile
-- legal governance profile
-- AI assurance profile
-- risk and control metadata
+* banking profile
+* insurance profile
+* legal governance profile
+* AI assurance profile
+* risk and control metadata
 
 ### Phase 4 — WASM Verifier
 
-- browser verifier
-- client-side bundle inspection
-- embedded verification mode
-- no-upload verification path
+* browser verifier
+* client-side bundle inspection
+* embedded verification mode
+* no-upload verification path
 
 ### Phase 5 — Assurance Interop
 
-- AXLE-compatible proof artifact examples
-- Lean proof bundle examples
-- AI decision bundle examples
-- audit and regulatory report templates
+* AXLE-compatible proof artifact examples
+* Lean proof bundle examples
+* AI decision bundle examples
+* audit and regulatory report templates
 
 ---
 
