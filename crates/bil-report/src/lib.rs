@@ -11,8 +11,23 @@ pub fn render_markdown(report: &VerificationReport) -> String {
         report.bundle_id.as_deref().unwrap_or("_unknown_")
     ));
     output.push_str(&format!(
+        "| Institutional kind | {} |\n",
+        report.institutional_kind.as_deref().unwrap_or("_none_")
+    ));
+    output.push_str(&format!(
+        "| Institutional profile version | {} |\n",
+        report
+            .institutional_profile_version
+            .as_deref()
+            .unwrap_or("_none_")
+    ));
+    output.push_str(&format!(
         "| Bundle verified | `{}` |\n",
         report.bundle_verified
+    ));
+    output.push_str(&format!(
+        "| Institutional layer present | `{}` |\n",
+        report.institutional_layer_present
     ));
     output.push_str(&format!(
         "| Receipt present | `{}` |\n",
@@ -40,6 +55,36 @@ pub fn render_markdown(report: &VerificationReport) -> String {
     output.push_str(&format!(
         "- Covered file count: `{}`\n\n",
         report.covered_file_count
+    ));
+
+    output.push_str("## Institutional Status\n\n");
+    output.push_str(&format!(
+        "- Banking profile verified: `{}`\n",
+        report.banking_profile_verified
+    ));
+    output.push_str(&format!(
+        "- Insurance profile verified: `{}`\n",
+        report.insurance_profile_verified
+    ));
+    output.push_str(&format!(
+        "- Legal governance profile verified: `{}`\n",
+        report.legal_governance_profile_verified
+    ));
+    output.push_str(&format!(
+        "- AI assurance profile verified: `{}`\n",
+        report.ai_assurance_profile_verified
+    ));
+    output.push_str(&format!(
+        "- Risk registry verified: `{}`\n",
+        report.risk_registry_verified
+    ));
+    output.push_str(&format!(
+        "- Controls registry verified: `{}`\n",
+        report.controls_registry_verified
+    ));
+    output.push_str(&format!(
+        "- Cross-profile consistency verified: `{}`\n\n",
+        report.cross_profile_consistency_verified
     ));
 
     output.push_str("## Findings\n\n");
@@ -82,6 +127,8 @@ mod tests {
             bundle_id: Some("bil:v0:sha256:abc".to_string()),
             bundle_kind: None,
             profile_version: None,
+            institutional_kind: None,
+            institutional_profile_version: None,
             payload_count: 1,
             verified_entries: Vec::<ManifestEntry>::new(),
             merkle_roots: None,
@@ -93,6 +140,14 @@ mod tests {
             key_id: None,
             covered_file_count: 4,
             bundle_verified: true,
+            institutional_layer_present: false,
+            banking_profile_verified: false,
+            insurance_profile_verified: false,
+            legal_governance_profile_verified: false,
+            ai_assurance_profile_verified: false,
+            risk_registry_verified: false,
+            controls_registry_verified: false,
+            cross_profile_consistency_verified: false,
             signature_valid: false,
             trust_verified: false,
             overall_verified: false,
@@ -106,5 +161,6 @@ mod tests {
         let markdown = render_markdown(&report);
         assert!(markdown.contains("# BIL Verification Report"));
         assert!(markdown.contains("invalid-signature"));
+        assert!(markdown.contains("Institutional Status"));
     }
 }

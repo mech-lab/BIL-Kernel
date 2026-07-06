@@ -8,7 +8,11 @@ rust-version.workspace = true
 [dependencies]
 bil-core = { path = "../bil-core" }
 bil-hash = { path = "../bil-hash" }
+bil-legal = { path = "../bil-legal" }
 bil-merkle = { path = "../bil-merkle" }
+bil-policy = { path = "../bil-policy" }
+bil-receipt = { path = "../bil-receipt" }
+bil-risk = { path = "../bil-risk" }
 bil-verify = { path = "../bil-verify" }
 serde.workspace = true
 serde_json.workspace = true

@@ -91,6 +91,18 @@
             "$ref": "#/definitions/CoveredFile"
           }
         },
+        "institutional_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "institutional_profile_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "issued_at": {
           "type": "string"
         },

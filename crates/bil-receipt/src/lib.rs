@@ -88,6 +88,8 @@ impl ReceiptIssuer {
             bundle_id: descriptor.bundle_id,
             bundle_kind: descriptor.bundle_kind,
             profile_version: descriptor.profile_version,
+            institutional_kind: descriptor.institutional_kind,
+            institutional_profile_version: descriptor.institutional_profile_version,
             issued_at: normalize_issued_at(options.issued_at.as_deref())?,
             covered_files,
         };
@@ -458,6 +460,8 @@ mod tests {
             bundle_id: "bil:v0:sha256:abc".to_string(),
             bundle_kind: BundleKind::AxleEvidence,
             profile_version: "axle-compat-v0".to_string(),
+            institutional_kind: None,
+            institutional_profile_version: None,
             issued_at: "2026-07-05T00:00:00Z".to_string(),
             covered_files: vec![CoveredFile {
                 logical_path: "axle.json".to_string(),

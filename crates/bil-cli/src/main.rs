@@ -72,6 +72,7 @@ struct ReceiptArgs {
 #[derive(Debug, Subcommand)]
 enum BundleCommand {
     Create(BundleCreateArgs),
+    Institutionalize(BundleInstitutionalizeArgs),
     Inspect(BundleInspectArgs),
 }
 
@@ -172,6 +173,18 @@ struct BundleInspectArgs {
     require_receipt: bool,
     #[arg(long, action = ArgAction::SetTrue)]
     require_trust: bool,
+}
+
+#[derive(Debug, Args)]
+struct BundleInstitutionalizeArgs {
+    #[arg(value_name = "DIR")]
+    bundle_path: String,
+    #[arg(long, value_name = "FILE")]
+    institutional: String,
+    #[arg(long, value_name = "FILE")]
+    risk: String,
+    #[arg(long, value_name = "FILE")]
+    controls: String,
 }
 
 #[derive(Debug, Args)]
@@ -411,6 +424,46 @@ fn run_bundle_command(command: BundleCommand) -> Result<ExitCode> {
             print_json(&output)?;
             Ok(ExitCode::SUCCESS)
         }
+        BundleCommand::Institutionalize(args) => {
+            let institutional_bytes = fs::read(&args.institutional).with_context(|| {
+                format!(
+                    "failed to read institutional profile input from {}",
+                    args.institutional
+                )
+            })?;
+            let risk_bytes = fs::read(&args.risk).with_context(|| {
+                format!("failed to read risk registry input from {}", args.risk)
+            })?;
+            let controls_bytes = fs::read(&args.controls).with_context(|| {
+                format!(
+                    "failed to read controls registry input from {}",
+                    args.controls
+                )
+            })?;
+            let materialized = BundleBuilder::new().institutionalize(
+                PathBuf::from(&args.bundle_path),
+                &institutional_bytes,
+                &risk_bytes,
+                &controls_bytes,
+            )?;
+            let output = BundleInstitutionalizeOutput {
+                output_dir: materialized.output_dir.display().to_string(),
+                previous_bundle_id: materialized.previous_bundle_id,
+                bundle_id: materialized.descriptor.bundle_id,
+                institutional_kind: materialized.descriptor.institutional_kind,
+                institutional_profile_version: materialized
+                    .descriptor
+                    .institutional_profile_version,
+                payload_count: materialized.manifest.entries.len(),
+                merkle_roots: DigestSet {
+                    sha256: materialized.merkle.trees.sha256.root,
+                    blake3: materialized.merkle.trees.blake3.root,
+                },
+                external_receipt_notice: materialized.external_receipt_notice,
+            };
+            print_json(&output)?;
+            Ok(ExitCode::SUCCESS)
+        }
         BundleCommand::Inspect(args) => {
             let inspection = BundleReader::open(PathBuf::from(&args.bundle_path))?
                 .inspect_with_options(&BundleInspectOptions {
@@ -529,6 +582,18 @@ struct BundleCreateOutput {
     bundle_id: String,
     payload_count: usize,
     merkle_roots: DigestSet,
+}
+
+#[derive(Debug, Serialize)]
+struct BundleInstitutionalizeOutput {
+    output_dir: String,
+    previous_bundle_id: String,
+    bundle_id: String,
+    institutional_kind: Option<String>,
+    institutional_profile_version: Option<String>,
+    payload_count: usize,
+    merkle_roots: DigestSet,
+    external_receipt_notice: String,
 }
 
 #[derive(Debug, Serialize)]

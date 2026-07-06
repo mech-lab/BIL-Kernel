@@ -30,14 +30,17 @@ Today, the repository provides:
 * deterministic Merkle evidence trees
 * `.bil` directory bundle creation and inspection
 * receipt issuance and signature validation
+* institutional profile enrichment for banking, insurance, legal governance, and AI assurance
+* canonical risk and control registries
 * JSON and Markdown verification reports
 * committed `v0` schemas and bundle specs
 * a temporary Python compatibility bridge via `axle bil ...`
 
 The near-term kernel roadmap adds:
 
-* banking, insurance, and legal metadata profiles
 * broader CLI tooling for developers and assurance teams
+* example institutional evidence bundles
+* archive packaging and portability options
 
 The kernel is designed to answer one institutional question:
 
@@ -199,8 +202,11 @@ Today it contains:
 <name>.bil/
 ├── axle.json
 ├── bundle.json
+├── institutional.json     # Phase 3 institutional layer, when present
 ├── manifest.json
 ├── merkle.json
+├── risk.json              # Phase 3 canonical risk registry, when present
+├── controls.json          # Phase 3 canonical control registry, when present
 └── receipt.json           # optional embedded Phase 2 receipt
 ```
 
@@ -303,14 +309,17 @@ bil-kernel/
 │   ├── bil-schema/            # Implemented v0 JSON Schema generation
 │   ├── bil-hash/              # Implemented canonical JSON and dual digests
 │   ├── bil-merkle/            # Implemented deterministic Merkle trees
+│   ├── bil-risk/              # Implemented risk and control registry validation
+│   ├── bil-legal/             # Implemented legal-governance link validation
+│   ├── bil-policy/            # Implemented institutional profile consistency checks
 │   ├── bil-bundle/            # Implemented `.bil` bundle create / inspect
 │   ├── bil-receipt/           # Implemented receipt issuance and signature handling
 │   ├── bil-verify/            # Implemented bundle and receipt verification
 │   ├── bil-report/            # Implemented Markdown verification rendering
 │   ├── bil-client/            # Implemented Rust async client for AXLE-compatible APIs
 │   └── bil-cli/               # Implemented Rust CLI
-├── schemas/v0/                # Committed Phase 1 and Phase 2 schema artifacts
-├── specs/                     # Committed bundle, manifest, merkle, receipt, and verification specs
+├── schemas/v0/                # Committed Phase 1, Phase 2, and Phase 3 schema artifacts
+├── specs/                     # Committed bundle, verification, receipt, and institutional specs
 ├── axle/                      # Legacy Python AXLE SDK and CLI, including `axle bil ...`
 ├── docs/                      # Existing Python-oriented documentation during transition
 ├── tests/                     # Python bridge and legacy AXLE tests
@@ -340,6 +349,7 @@ bil status
 bil environments
 bil hash ./payload.json --canonical-json
 bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
+bil bundle institutionalize ./proof.bil --institutional ./institutional.json --risk ./risk.json --controls ./controls.json
 bil bundle inspect ./proof.bil
 bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
 bil axle verify-proof ./proof.lean --formal-statement "..." --environment lean-4.28.0
@@ -392,19 +402,23 @@ Implemented today. Renders Markdown verification reports from the structured JSO
 
 ---
 
-## Planned Crates
+## Phase 3 Crates
 
 ### `bil-policy`
 
-Policy and control-boundary evaluation.
+Implemented today. Validates institutional completeness, canonical summary duplication, and cross-profile consistency for Phase 3 bundles.
 
 ### `bil-risk`
 
-Banking, insurance, actuarial, and operational risk metadata.
+Implemented today. Owns canonical `risk.json` and `controls.json` validation, including reciprocal risk/control linkage checks.
 
 ### `bil-legal`
 
-Legal governance, liability, compliance, and evidentiary metadata.
+Implemented today. Validates legal-governance linkage rules against banking, insurance, and AI assurance identifiers.
+
+---
+
+## Planned Crates
 
 ### `bil-wasm`
 
@@ -419,6 +433,7 @@ bil status
 bil environments
 bil hash ./payload.json --canonical-json
 bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
+bil bundle institutionalize ./proof.bil --institutional ./institutional.json --risk ./risk.json --controls ./controls.json
 bil bundle inspect ./proof.bil --format json
 bil bundle inspect ./proof.bil --format markdown
 bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
@@ -429,7 +444,7 @@ bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove
 axle bil status
 ```
 
-Policy/risk/legal profiles, archive packaging, and richer interop remain roadmap work.
+WASM targets, archive packaging, and richer interop remain roadmap work.
 
 ---
 
@@ -671,17 +686,18 @@ Implemented in this bootstrap:
 8. `.bil` bundle manifest and bundle inspection in `bil-bundle`
 9. Receipt issuance in `bil-receipt`
 10. Structured verification in `bil-verify`
-11. Markdown report rendering in `bil-report`
-12. Expanded Rust CLI in `bil-cli`
-13. Python compatibility bridge via `axle bil ...`
+11. Institutional profile validation in `bil-risk`, `bil-legal`, and `bil-policy`
+12. Markdown report rendering in `bil-report`
+13. Expanded Rust CLI in `bil-cli`
+14. Python compatibility bridge via `axle bil ...`
 
 Next development priorities:
 
-1. institutional metadata profiles
-2. example evidence bundles
-3. browser and embedded verification targets
-4. archive packaging and portability options
-5. richer interoperability outputs
+1. example evidence bundles
+2. browser and embedded verification targets
+3. archive packaging and portability options
+4. richer interoperability outputs
+5. WASM verifier hardening
 
 ---
 
@@ -716,6 +732,8 @@ Implemented:
 * JSON and Markdown output
 
 ### Phase 3 — Institutional Profiles
+
+Implemented:
 
 * banking profile
 * insurance profile

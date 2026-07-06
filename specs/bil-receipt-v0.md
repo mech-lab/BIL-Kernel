@@ -22,7 +22,7 @@ The receipt contains:
 
 ## Claims
 
-Phase 2 claims record:
+Receipt claims record:
 
 - `schema_version`
 - `receipt_mode`
@@ -30,6 +30,8 @@ Phase 2 claims record:
 - `bundle_id`
 - `bundle_kind`
 - `profile_version`
+- `institutional_kind` when the bundle carries the Phase 3 institutional layer
+- `institutional_profile_version` when the bundle carries the Phase 3 institutional layer
 - `issued_at`
 - `covered_files[]`
 

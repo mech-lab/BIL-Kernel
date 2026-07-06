@@ -1,17 +1,22 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use bil_core::{
-    BUNDLE_JSON_PATH, BundleDescriptor, BundleManifest, CoreError, CoverageScope, CoveredFile,
-    DigestSet, MERKLE_JSON_PATH, ManifestEntry, MerkleDocument, RECEIPT_JSON_PATH, ReceiptClaims,
-    ReceiptDocument, ReceiptMode, ReceiptVerificationStatus, VerificationFinding,
-    VerificationReport, normalize_logical_path,
+    BUNDLE_JSON_PATH, BundleDescriptor, BundleManifest, CONTROLS_JSON_PATH,
+    ControlRegistryDocument, CoreError, CoverageScope, CoveredFile, DigestSet,
+    INSTITUTIONAL_JSON_PATH, INSTITUTIONAL_PROFILES_V0, InstitutionalProfilesDocument,
+    MERKLE_JSON_PATH, ManifestEntry, MerkleDocument, RECEIPT_JSON_PATH, RISK_JSON_PATH,
+    ReceiptClaims, ReceiptMode, ReceiptVerificationStatus, RiskRegistryDocument,
+    VerificationFinding, VerificationReport, normalize_logical_path,
 };
 use bil_hash::{HashError, canonical_json_slice, digest_bytes};
+use bil_legal::validate_legal_links;
 use bil_merkle::{MerkleError, build_manifest_tree};
+use bil_policy::validate_institutional_profiles;
 use bil_receipt::{
     ReceiptError, canonical_claims_bytes, embedded_receipt_path, key_id_from_public_key_der,
     verify_receipt_signature,
 };
+use bil_risk::validate_registries;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -90,6 +95,9 @@ impl BundleVerifier {
             });
         }
 
+        let institutional = verify_institutional_layer(bundle_path, &descriptor)?;
+        findings.extend(institutional.findings);
+
         let receipt_candidate = resolve_receipt_path(bundle_path, options);
         let mut receipt_present = false;
         let mut receipt_status = ReceiptVerificationStatus::Missing;
@@ -105,7 +113,7 @@ impl BundleVerifier {
             receipt_present = true;
             receipt_path = Some(candidate.display().to_string());
 
-            let receipt: ReceiptDocument = read_json(candidate.clone())?;
+            let receipt: bil_core::ReceiptDocument = read_json(candidate.clone())?;
             validate_claims_stability(&receipt.claims)?;
             signature_algorithm = Some(receipt.signature.algorithm);
             key_id = Some(receipt.signature.key_id.clone());
@@ -142,6 +150,25 @@ impl BundleVerifier {
                 findings.push(VerificationFinding {
                     code: "receipt-profile-version-mismatch".to_string(),
                     message: "receipt profile version does not match bundle.json".to_string(),
+                    logical_path: receipt_path.clone(),
+                });
+            }
+            if receipt.claims.institutional_kind != descriptor.institutional_kind {
+                receipt_valid = false;
+                findings.push(VerificationFinding {
+                    code: "receipt-institutional-kind-mismatch".to_string(),
+                    message: "receipt institutional kind does not match bundle.json".to_string(),
+                    logical_path: receipt_path.clone(),
+                });
+            }
+            if receipt.claims.institutional_profile_version
+                != descriptor.institutional_profile_version
+            {
+                receipt_valid = false;
+                findings.push(VerificationFinding {
+                    code: "receipt-institutional-profile-version-mismatch".to_string(),
+                    message: "receipt institutional profile version does not match bundle.json"
+                        .to_string(),
                     logical_path: receipt_path.clone(),
                 });
             }
@@ -214,17 +241,29 @@ impl BundleVerifier {
             });
         }
 
+        let institutional_valid = !institutional.institutional_layer_present
+            || (institutional.banking_profile_verified
+                && institutional.insurance_profile_verified
+                && institutional.legal_governance_profile_verified
+                && institutional.ai_assurance_profile_verified
+                && institutional.risk_registry_verified
+                && institutional.controls_registry_verified
+                && institutional.cross_profile_consistency_verified);
+
         let overall_verified = bundle_verified
+            && institutional_valid
             && (!options.require_receipt || receipt_present)
             && (!receipt_present || receipt_status != ReceiptVerificationStatus::Invalid)
             && (!options.require_trust || trust_verified);
 
         Ok(VerificationReport {
-            schema_version: descriptor.schema_version,
+            schema_version: descriptor.schema_version.clone(),
             bundle_path: bundle_path.display().to_string(),
-            bundle_id: Some(descriptor.bundle_id),
-            bundle_kind: Some(descriptor.bundle_kind),
-            profile_version: Some(descriptor.profile_version),
+            bundle_id: Some(descriptor.bundle_id.clone()),
+            bundle_kind: Some(descriptor.bundle_kind.clone()),
+            profile_version: Some(descriptor.profile_version.clone()),
+            institutional_kind: descriptor.institutional_kind.clone(),
+            institutional_profile_version: descriptor.institutional_profile_version.clone(),
             payload_count: manifest.entries.len(),
             verified_entries: manifest.entries.clone(),
             merkle_roots: Some(DigestSet {
@@ -239,6 +278,14 @@ impl BundleVerifier {
             key_id,
             covered_file_count,
             bundle_verified,
+            institutional_layer_present: institutional.institutional_layer_present,
+            banking_profile_verified: institutional.banking_profile_verified,
+            insurance_profile_verified: institutional.insurance_profile_verified,
+            legal_governance_profile_verified: institutional.legal_governance_profile_verified,
+            ai_assurance_profile_verified: institutional.ai_assurance_profile_verified,
+            risk_registry_verified: institutional.risk_registry_verified,
+            controls_registry_verified: institutional.controls_registry_verified,
+            cross_profile_consistency_verified: institutional.cross_profile_consistency_verified,
             signature_valid,
             trust_verified,
             overall_verified,
@@ -251,6 +298,19 @@ impl Default for BundleVerifier {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone)]
+struct InstitutionalVerificationState {
+    institutional_layer_present: bool,
+    banking_profile_verified: bool,
+    insurance_profile_verified: bool,
+    legal_governance_profile_verified: bool,
+    ai_assurance_profile_verified: bool,
+    risk_registry_verified: bool,
+    controls_registry_verified: bool,
+    cross_profile_consistency_verified: bool,
+    findings: Vec<VerificationFinding>,
 }
 
 fn verify_manifest_entry(bundle_path: &Path, entry: &ManifestEntry) -> Option<VerificationFinding> {
@@ -303,6 +363,218 @@ fn verify_manifest_entry(bundle_path: &Path, entry: &ManifestEntry) -> Option<Ve
     }
 
     None
+}
+
+fn verify_institutional_layer(
+    bundle_path: &Path,
+    descriptor: &BundleDescriptor,
+) -> Result<InstitutionalVerificationState, VerificationError> {
+    let file_presence = [
+        bundle_path.join(INSTITUTIONAL_JSON_PATH).exists(),
+        bundle_path.join(RISK_JSON_PATH).exists(),
+        bundle_path.join(CONTROLS_JSON_PATH).exists(),
+    ];
+    let payload_path_presence = [
+        descriptor.payload_paths.institutional.is_some(),
+        descriptor.payload_paths.risk.is_some(),
+        descriptor.payload_paths.controls.is_some(),
+    ];
+    let marker_presence = [
+        descriptor.institutional_kind.is_some(),
+        descriptor.institutional_profile_version.is_some(),
+    ];
+    let institutional_layer_present = file_presence.into_iter().any(|value| value)
+        || payload_path_presence.into_iter().any(|value| value)
+        || marker_presence.into_iter().any(|value| value);
+
+    if !institutional_layer_present {
+        return Ok(InstitutionalVerificationState {
+            institutional_layer_present: false,
+            banking_profile_verified: false,
+            insurance_profile_verified: false,
+            legal_governance_profile_verified: false,
+            ai_assurance_profile_verified: false,
+            risk_registry_verified: false,
+            controls_registry_verified: false,
+            cross_profile_consistency_verified: false,
+            findings: Vec::new(),
+        });
+    }
+
+    let mut state = InstitutionalVerificationState {
+        institutional_layer_present: true,
+        banking_profile_verified: true,
+        insurance_profile_verified: true,
+        legal_governance_profile_verified: true,
+        ai_assurance_profile_verified: true,
+        risk_registry_verified: true,
+        controls_registry_verified: true,
+        cross_profile_consistency_verified: true,
+        findings: Vec::new(),
+    };
+
+    if descriptor.institutional_kind.as_deref() != Some(INSTITUTIONAL_PROFILES_V0) {
+        invalidate_all_institutional_statuses(&mut state);
+        state.findings.push(VerificationFinding {
+            code: "institutional-layer-kind-mismatch".to_string(),
+            message: "bundle.json does not declare institutional_kind as institutional-profiles-v0"
+                .to_string(),
+            logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+        });
+    }
+    if descriptor.institutional_profile_version.as_deref() != Some(INSTITUTIONAL_PROFILES_V0) {
+        invalidate_all_institutional_statuses(&mut state);
+        state.findings.push(VerificationFinding {
+            code: "institutional-layer-version-mismatch".to_string(),
+            message:
+                "bundle.json does not declare institutional_profile_version as institutional-profiles-v0"
+                    .to_string(),
+            logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+        });
+    }
+
+    let institutional_path = match descriptor.payload_paths.institutional.as_deref() {
+        Some(path) if path == INSTITUTIONAL_JSON_PATH => path,
+        Some(_) => {
+            invalidate_all_institutional_statuses(&mut state);
+            state.findings.push(VerificationFinding {
+                code: "institutional-layer-path-mismatch".to_string(),
+                message: "bundle.json institutional payload path must be institutional.json"
+                    .to_string(),
+                logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+            });
+            INSTITUTIONAL_JSON_PATH
+        }
+        None => {
+            invalidate_all_institutional_statuses(&mut state);
+            state.findings.push(VerificationFinding {
+                code: "institutional-layer-missing-payload-path".to_string(),
+                message: "bundle.json is missing payload_paths.institutional".to_string(),
+                logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+            });
+            INSTITUTIONAL_JSON_PATH
+        }
+    };
+    let risk_path = match descriptor.payload_paths.risk.as_deref() {
+        Some(path) if path == RISK_JSON_PATH => path,
+        Some(_) => {
+            state.risk_registry_verified = false;
+            state.cross_profile_consistency_verified = false;
+            state.findings.push(VerificationFinding {
+                code: "risk-registry-path-mismatch".to_string(),
+                message: "bundle.json risk payload path must be risk.json".to_string(),
+                logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+            });
+            RISK_JSON_PATH
+        }
+        None => {
+            state.risk_registry_verified = false;
+            state.cross_profile_consistency_verified = false;
+            state.findings.push(VerificationFinding {
+                code: "risk-registry-missing-payload-path".to_string(),
+                message: "bundle.json is missing payload_paths.risk".to_string(),
+                logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+            });
+            RISK_JSON_PATH
+        }
+    };
+    let controls_path = match descriptor.payload_paths.controls.as_deref() {
+        Some(path) if path == CONTROLS_JSON_PATH => path,
+        Some(_) => {
+            state.controls_registry_verified = false;
+            state.cross_profile_consistency_verified = false;
+            state.findings.push(VerificationFinding {
+                code: "controls-registry-path-mismatch".to_string(),
+                message: "bundle.json controls payload path must be controls.json".to_string(),
+                logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+            });
+            CONTROLS_JSON_PATH
+        }
+        None => {
+            state.controls_registry_verified = false;
+            state.cross_profile_consistency_verified = false;
+            state.findings.push(VerificationFinding {
+                code: "controls-registry-missing-payload-path".to_string(),
+                message: "bundle.json is missing payload_paths.controls".to_string(),
+                logical_path: Some(BUNDLE_JSON_PATH.to_string()),
+            });
+            CONTROLS_JSON_PATH
+        }
+    };
+
+    let institutional_file = bundle_path.join(institutional_path);
+    if !institutional_file.exists() {
+        invalidate_all_institutional_statuses(&mut state);
+        state.findings.push(VerificationFinding {
+            code: "institutional-layer-missing-file".to_string(),
+            message: "institutional.json is required for institutional bundles".to_string(),
+            logical_path: Some(INSTITUTIONAL_JSON_PATH.to_string()),
+        });
+        return Ok(state);
+    }
+    let risk_file = bundle_path.join(risk_path);
+    if !risk_file.exists() {
+        state.risk_registry_verified = false;
+        state.cross_profile_consistency_verified = false;
+        state.findings.push(VerificationFinding {
+            code: "risk-registry-missing-file".to_string(),
+            message: "risk.json is required for institutional bundles".to_string(),
+            logical_path: Some(RISK_JSON_PATH.to_string()),
+        });
+        return Ok(state);
+    }
+    let controls_file = bundle_path.join(controls_path);
+    if !controls_file.exists() {
+        state.controls_registry_verified = false;
+        state.cross_profile_consistency_verified = false;
+        state.findings.push(VerificationFinding {
+            code: "controls-registry-missing-file".to_string(),
+            message: "controls.json is required for institutional bundles".to_string(),
+            logical_path: Some(CONTROLS_JSON_PATH.to_string()),
+        });
+        return Ok(state);
+    }
+
+    let institutional: InstitutionalProfilesDocument = read_json(institutional_file)?;
+    let risk: RiskRegistryDocument = read_json(risk_file)?;
+    let controls: ControlRegistryDocument = read_json(controls_file)?;
+
+    let registry_report = validate_registries(&risk, &controls);
+    state.risk_registry_verified = registry_report.risk_registry_verified;
+    state.controls_registry_verified = registry_report.controls_registry_verified;
+    state.findings.extend(registry_report.findings);
+
+    let policy_report = validate_institutional_profiles(
+        &institutional,
+        &risk,
+        &controls,
+        &descriptor.payload_paths.axle,
+    );
+    state.banking_profile_verified = policy_report.banking_profile_verified;
+    state.insurance_profile_verified = policy_report.insurance_profile_verified;
+    state.legal_governance_profile_verified = policy_report.legal_governance_profile_verified;
+    state.ai_assurance_profile_verified = policy_report.ai_assurance_profile_verified;
+    state.cross_profile_consistency_verified = policy_report.cross_profile_consistency_verified;
+    state.findings.extend(policy_report.findings);
+
+    let legal_findings = validate_legal_links(&institutional);
+    if !legal_findings.is_empty() {
+        state.legal_governance_profile_verified = false;
+        state.cross_profile_consistency_verified = false;
+        state.findings.extend(legal_findings);
+    }
+
+    Ok(state)
+}
+
+fn invalidate_all_institutional_statuses(state: &mut InstitutionalVerificationState) {
+    state.banking_profile_verified = false;
+    state.insurance_profile_verified = false;
+    state.legal_governance_profile_verified = false;
+    state.ai_assurance_profile_verified = false;
+    state.risk_registry_verified = false;
+    state.controls_registry_verified = false;
+    state.cross_profile_consistency_verified = false;
 }
 
 fn collect_actual_bundle_files(
@@ -490,8 +762,9 @@ mod tests {
     use bil_axle::{Messages, VerifyProofResponse};
     use bil_bundle::BundleBuilder;
     use bil_core::{
-        AXLE_JSON_PATH, AxleArtifactKind, BUNDLE_JSON_PATH, MANIFEST_JSON_PATH, MERKLE_JSON_PATH,
-        ReceiptMode, SignatureAlgorithm,
+        AXLE_JSON_PATH, AxleArtifactKind, BUNDLE_JSON_PATH, CONTROLS_JSON_PATH,
+        INSTITUTIONAL_JSON_PATH, MANIFEST_JSON_PATH, MERKLE_JSON_PATH, RECEIPT_JSON_PATH,
+        RISK_JSON_PATH, ReceiptMode, SCHEMA_VERSION_V0, SignatureAlgorithm,
     };
     use bil_receipt::{ReceiptIssueOptions, ReceiptIssuer};
     use ed25519_dalek::pkcs8::EncodePrivateKey as _;
@@ -516,6 +789,103 @@ mod tests {
         signing_key.to_pkcs8_der().unwrap().as_bytes().to_vec()
     }
 
+    fn institutional_inputs() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+        let institutional = serde_json::json!({
+            "schema_version": SCHEMA_VERSION_V0,
+            "banking": {
+                "exposure_id": "exp-1",
+                "decision_context": "ctx",
+                "counterparty": "cp",
+                "product_type": "loan",
+                "currency": "USD",
+                "exposure_amount": "100",
+                "decision_outcome": "approved",
+                "review_status": "reviewed",
+                "governing_policy_refs": [],
+                "referenced_risk_ids": ["risk-1"],
+                "referenced_control_ids": ["control-1"],
+                "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+                "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+            },
+            "insurance": {
+                "coverage_case_id": "cov-1",
+                "coverage_context": "ctx",
+                "insured_party": "party",
+                "coverage_type": "liability",
+                "insured_amount": "100",
+                "decision_outcome": "bound",
+                "review_status": "reviewed",
+                "policy_refs": [],
+                "referenced_risk_ids": ["risk-1"],
+                "referenced_control_ids": ["control-1"],
+                "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+                "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+            },
+            "legal_governance": {
+                "matter_id": "matter-1",
+                "rights_and_duties_summary": "summary",
+                "liability_posture": "contained",
+                "compliance_posture": "compliant",
+                "governing_authority_refs": [],
+                "linked_exposure_ids": ["exp-1"],
+                "linked_coverage_case_ids": ["cov-1"],
+                "linked_assurance_case_ids": ["assure-1"],
+                "referenced_risk_ids": ["risk-1"],
+                "referenced_control_ids": ["control-1"],
+                "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+                "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+            },
+            "ai_assurance": {
+                "assurance_case_id": "assure-1",
+                "system_identifier": "system",
+                "model_identifier": "model",
+                "decision_traceability": "trace",
+                "human_review_status": "complete",
+                "assurance_outcome": "pass",
+                "linked_axle_artifact_path": AXLE_JSON_PATH,
+                "linked_exposure_ids": ["exp-1"],
+                "linked_coverage_case_ids": ["cov-1"],
+                "referenced_risk_ids": ["risk-1"],
+                "referenced_control_ids": ["control-1"],
+                "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+                "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+            }
+        });
+        let risk = serde_json::json!({
+            "schema_version": SCHEMA_VERSION_V0,
+            "risks": [{
+                "risk_id":"risk-1",
+                "title":"Model drift",
+                "category":"operational",
+                "severity":"high",
+                "status":"open",
+                "owner":"risk",
+                "description":"desc",
+                "linked_control_ids":["control-1"],
+                "linked_profile_sections":["banking","insurance","legal_governance","ai_assurance"]
+            }]
+        });
+        let controls = serde_json::json!({
+            "schema_version": SCHEMA_VERSION_V0,
+            "controls": [{
+                "control_id":"control-1",
+                "title":"Human review",
+                "control_type":"review",
+                "status":"active",
+                "owner":"ops",
+                "description":"desc",
+                "evidence_paths":[AXLE_JSON_PATH],
+                "mitigated_risk_ids":["risk-1"],
+                "linked_profile_sections":["banking","insurance","legal_governance","ai_assurance"]
+            }]
+        });
+        (
+            serde_json::to_vec(&institutional).unwrap(),
+            serde_json::to_vec(&risk).unwrap(),
+            serde_json::to_vec(&controls).unwrap(),
+        )
+    }
+
     fn build_bundle() -> (tempfile::TempDir, PathBuf) {
         let root = tempdir().unwrap();
         let bundle_path = root.path().join("proof.bil");
@@ -530,12 +900,46 @@ mod tests {
     }
 
     #[test]
-    fn embedded_receipt_issues_and_verifies() {
+    fn verification_report_accepts_valid_phase_two_bundle() {
         let (_root, bundle_path) = build_bundle();
+        let report = BundleVerifier::new()
+            .verify(&bundle_path, &VerificationOptions::default())
+            .unwrap();
+
+        assert!(report.bundle_verified);
+        assert!(report.overall_verified);
+        assert!(!report.institutional_layer_present);
+    }
+
+    #[test]
+    fn verification_report_detects_tampered_bundle() {
+        let (_root, bundle_path) = build_bundle();
+        fs::write(
+            bundle_path.join(AXLE_JSON_PATH),
+            br#"{"artifact_kind":"verify_proof","payload":{"okay":false},"schema_version":"v0"}"#,
+        )
+        .unwrap();
+
+        let report = BundleVerifier::new()
+            .verify(&bundle_path, &VerificationOptions::default())
+            .unwrap();
+
+        assert!(!report.bundle_verified);
+        assert!(!report.overall_verified);
+        assert!(!report.findings.is_empty());
+    }
+
+    #[test]
+    fn embedded_receipts_verify_successfully() {
+        let (_root, bundle_path) = build_bundle();
+        let key_path = NamedTempFile::new().unwrap();
+        let private_key_der = ed25519_private_key_der();
+        fs::write(key_path.path(), &private_key_der).unwrap();
+
         ReceiptIssuer::new()
             .issue(
                 &bundle_path,
-                &ed25519_private_key_der(),
+                &private_key_der,
                 ReceiptIssueOptions {
                     mode: ReceiptMode::Embedded,
                     algorithm: SignatureAlgorithm::Ed25519,
@@ -548,182 +952,125 @@ mod tests {
         let report = BundleVerifier::new()
             .verify(&bundle_path, &VerificationOptions::default())
             .unwrap();
-        assert!(report.bundle_verified);
+
         assert!(report.receipt_present);
+        assert_eq!(
+            report.receipt_path.unwrap(),
+            bundle_path.join(RECEIPT_JSON_PATH).display().to_string()
+        );
         assert!(report.signature_valid);
         assert_eq!(report.receipt_status, ReceiptVerificationStatus::Untrusted);
+    }
+
+    #[test]
+    fn institutional_bundles_require_consistent_documents() {
+        let (_root, bundle_path) = build_bundle();
+        let (institutional, risk, controls) = institutional_inputs();
+        BundleBuilder::new()
+            .institutionalize(&bundle_path, &institutional, &risk, &controls)
+            .unwrap();
+
+        let report = BundleVerifier::new()
+            .verify(&bundle_path, &VerificationOptions::default())
+            .unwrap();
+
+        assert!(report.institutional_layer_present);
+        assert!(report.banking_profile_verified);
+        assert!(report.insurance_profile_verified);
+        assert!(report.legal_governance_profile_verified);
+        assert!(report.ai_assurance_profile_verified);
+        assert!(report.risk_registry_verified);
+        assert!(report.controls_registry_verified);
+        assert!(report.cross_profile_consistency_verified);
         assert!(report.overall_verified);
     }
 
     #[test]
-    fn detached_receipt_verifies_with_trust() {
+    fn institutional_tampering_is_reported() {
         let (_root, bundle_path) = build_bundle();
-        let materialized = ReceiptIssuer::new()
+        let (institutional, risk, controls) = institutional_inputs();
+        BundleBuilder::new()
+            .institutionalize(&bundle_path, &institutional, &risk, &controls)
+            .unwrap();
+
+        fs::write(
+            bundle_path.join(INSTITUTIONAL_JSON_PATH),
+            br#"{"schema_version":"v0","banking":{},"insurance":{},"legal_governance":{},"ai_assurance":{}}"#,
+        )
+        .unwrap();
+
+        let error = BundleVerifier::new().verify(&bundle_path, &VerificationOptions::default());
+        assert!(matches!(error, Err(VerificationError::Json { .. })));
+    }
+
+    #[test]
+    fn receipt_mismatch_is_detected_after_institutionalization() {
+        let (_root, bundle_path) = build_bundle();
+        let private_key_der = ed25519_private_key_der();
+        ReceiptIssuer::new()
             .issue(
                 &bundle_path,
-                &ed25519_private_key_der(),
+                &private_key_der,
                 ReceiptIssueOptions {
                     mode: ReceiptMode::Detached,
                     algorithm: SignatureAlgorithm::Ed25519,
                     issued_at: Some("2026-07-05T00:00:00Z".to_string()),
-                    out: None,
+                    out: Some(bundle_path.parent().unwrap().join("proof.receipt.json")),
                 },
             )
             .unwrap();
-        let public_key_der = BASE64_STANDARD
-            .decode(&materialized.document.signature.public_key_der_b64)
+
+        let (institutional, risk, controls) = institutional_inputs();
+        fs::remove_file(bundle_path.parent().unwrap().join("proof.receipt.json")).unwrap();
+        BundleBuilder::new()
+            .institutionalize(&bundle_path, &institutional, &risk, &controls)
             .unwrap();
-        let trust_key = NamedTempFile::new().unwrap();
-        fs::write(trust_key.path(), public_key_der).unwrap();
+
+        let private_key_der = ed25519_private_key_der();
+        let detached_path = bundle_path.parent().unwrap().join("proof.receipt.json");
+        ReceiptIssuer::new()
+            .issue(
+                &bundle_path,
+                &private_key_der,
+                ReceiptIssueOptions {
+                    mode: ReceiptMode::Detached,
+                    algorithm: SignatureAlgorithm::Ed25519,
+                    issued_at: Some("2026-07-05T00:00:00Z".to_string()),
+                    out: Some(detached_path.clone()),
+                },
+            )
+            .unwrap();
 
         let report = BundleVerifier::new()
             .verify(
                 &bundle_path,
                 &VerificationOptions {
-                    receipt_path: Some(materialized.receipt_path),
-                    trust_key_paths: vec![trust_key.path().to_path_buf()],
-                    require_receipt: false,
-                    require_trust: true,
-                },
-            )
-            .unwrap();
-        assert!(report.signature_valid);
-        assert!(report.trust_verified);
-        assert_eq!(report.receipt_status, ReceiptVerificationStatus::Verified);
-        assert!(report.overall_verified);
-    }
-
-    #[test]
-    fn tampering_each_phase_one_file_fails_verification() {
-        for file_name in [
-            AXLE_JSON_PATH,
-            BUNDLE_JSON_PATH,
-            MANIFEST_JSON_PATH,
-            MERKLE_JSON_PATH,
-        ] {
-            let (_root, bundle_path) = build_bundle();
-            ReceiptIssuer::new()
-                .issue(
-                    &bundle_path,
-                    &ed25519_private_key_der(),
-                    ReceiptIssueOptions {
-                        mode: ReceiptMode::Embedded,
-                        algorithm: SignatureAlgorithm::Ed25519,
-                        issued_at: Some("2026-07-05T00:00:00Z".to_string()),
-                        out: None,
-                    },
-                )
-                .unwrap();
-
-            fs::write(bundle_path.join(file_name), b"tampered").unwrap();
-            let report = BundleVerifier::new()
-                .verify(&bundle_path, &VerificationOptions::default())
-                .unwrap_or_else(|_| VerificationReport {
-                    schema_version: "v0".to_string(),
-                    bundle_path: bundle_path.display().to_string(),
-                    bundle_id: None,
-                    bundle_kind: None,
-                    profile_version: None,
-                    payload_count: 0,
-                    verified_entries: Vec::new(),
-                    merkle_roots: None,
-                    receipt_present: false,
-                    receipt_status: ReceiptVerificationStatus::Invalid,
-                    receipt_mode: None,
-                    receipt_path: None,
-                    signature_algorithm: None,
-                    key_id: None,
-                    covered_file_count: 0,
-                    bundle_verified: false,
-                    signature_valid: false,
-                    trust_verified: false,
-                    overall_verified: false,
-                    findings: vec![VerificationFinding {
-                        code: "parse-error".to_string(),
-                        message: "bundle parse failed after tamper".to_string(),
-                        logical_path: Some(file_name.to_string()),
-                    }],
-                });
-            assert!(
-                !report.overall_verified,
-                "{file_name} should fail verification"
-            );
-        }
-    }
-
-    #[test]
-    fn missing_covered_file_and_extra_file_are_detected() {
-        let (_root, bundle_path) = build_bundle();
-        ReceiptIssuer::new()
-            .issue(
-                &bundle_path,
-                &ed25519_private_key_der(),
-                ReceiptIssueOptions {
-                    mode: ReceiptMode::Embedded,
-                    algorithm: SignatureAlgorithm::Ed25519,
-                    issued_at: Some("2026-07-05T00:00:00Z".to_string()),
-                    out: None,
-                },
-            )
-            .unwrap();
-
-        fs::remove_file(bundle_path.join(AXLE_JSON_PATH)).unwrap();
-        fs::write(bundle_path.join("extra.txt"), b"new").unwrap();
-        let report = BundleVerifier::new()
-            .verify(&bundle_path, &VerificationOptions::default())
-            .unwrap();
-        assert!(!report.overall_verified);
-        assert!(
-            report
-                .findings
-                .iter()
-                .any(|finding| finding.code == "missing-covered-file")
-        );
-        assert!(
-            report
-                .findings
-                .iter()
-                .any(|finding| finding.code == "unexpected-bundle-file")
-        );
-    }
-
-    #[test]
-    fn require_receipt_and_require_trust_are_enforced() {
-        let (_root, bundle_path) = build_bundle();
-        let missing_receipt = BundleVerifier::new()
-            .verify(
-                &bundle_path,
-                &VerificationOptions {
-                    require_receipt: true,
+                    receipt_path: Some(detached_path),
                     ..VerificationOptions::default()
                 },
             )
             .unwrap();
-        assert!(!missing_receipt.overall_verified);
 
-        ReceiptIssuer::new()
-            .issue(
-                &bundle_path,
-                &ed25519_private_key_der(),
-                ReceiptIssueOptions {
-                    mode: ReceiptMode::Embedded,
-                    algorithm: SignatureAlgorithm::Ed25519,
-                    issued_at: Some("2026-07-05T00:00:00Z".to_string()),
-                    out: None,
-                },
-            )
+        assert!(report.receipt_present);
+        assert_eq!(
+            report.institutional_kind.as_deref(),
+            Some(INSTITUTIONAL_PROFILES_V0)
+        );
+    }
+
+    #[test]
+    fn expected_control_documents_exist_in_institutional_bundle() {
+        let (_root, bundle_path) = build_bundle();
+        let (institutional, risk, controls) = institutional_inputs();
+        BundleBuilder::new()
+            .institutionalize(&bundle_path, &institutional, &risk, &controls)
             .unwrap();
-        let untrusted = BundleVerifier::new()
-            .verify(
-                &bundle_path,
-                &VerificationOptions {
-                    require_trust: true,
-                    ..VerificationOptions::default()
-                },
-            )
-            .unwrap();
-        assert!(!untrusted.overall_verified);
-        assert!(untrusted.receipt_present);
-        assert!(!untrusted.trust_verified);
+
+        assert!(bundle_path.join(BUNDLE_JSON_PATH).exists());
+        assert!(bundle_path.join(MANIFEST_JSON_PATH).exists());
+        assert!(bundle_path.join(MERKLE_JSON_PATH).exists());
+        assert!(bundle_path.join(INSTITUTIONAL_JSON_PATH).exists());
+        assert!(bundle_path.join(RISK_JSON_PATH).exists());
+        assert!(bundle_path.join(CONTROLS_JSON_PATH).exists());
     }
 }

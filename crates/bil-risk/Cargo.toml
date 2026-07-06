@@ -1,0 +1,12 @@
+[package]
+name = "bil-risk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bil-core = { path = "../bil-core" }
+
+[dev-dependencies]
+serde_json.workspace = true

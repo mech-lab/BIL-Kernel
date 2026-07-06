@@ -18,6 +18,18 @@
     "bundle_kind": {
       "$ref": "#/definitions/BundleKind"
     },
+    "institutional_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "institutional_profile_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "manifest_path": {
       "type": "string"
     },
@@ -49,6 +61,24 @@
       "properties": {
         "axle": {
           "type": "string"
+        },
+        "controls": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "institutional": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "risk": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }

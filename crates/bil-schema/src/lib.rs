@@ -1,5 +1,6 @@
 use bil_core::{
-    AxleEvidenceRecord, BundleDescriptor, BundleManifest, MerkleDocument, ReceiptDocument,
+    AxleEvidenceRecord, BundleDescriptor, BundleManifest, ControlRegistryDocument,
+    InstitutionalProfilesDocument, MerkleDocument, ReceiptDocument, RiskRegistryDocument,
     VerificationReport,
 };
 use schemars::schema_for;
@@ -30,6 +31,18 @@ pub fn schema_documents() -> Vec<SchemaDocument> {
             contents: pretty_schema(schema_for!(MerkleDocument)),
         },
         SchemaDocument {
+            file_name: "institutional-profiles.schema.json",
+            contents: pretty_schema(schema_for!(InstitutionalProfilesDocument)),
+        },
+        SchemaDocument {
+            file_name: "risk-registry.schema.json",
+            contents: pretty_schema(schema_for!(RiskRegistryDocument)),
+        },
+        SchemaDocument {
+            file_name: "control-registry.schema.json",
+            contents: pretty_schema(schema_for!(ControlRegistryDocument)),
+        },
+        SchemaDocument {
             file_name: "receipt-document.schema.json",
             contents: pretty_schema(schema_for!(ReceiptDocument)),
         },
@@ -38,6 +51,14 @@ pub fn schema_documents() -> Vec<SchemaDocument> {
             contents: pretty_schema(schema_for!(VerificationReport)),
         },
     ]
+}
+
+pub fn write_schema_documents() -> std::io::Result<()> {
+    std::fs::create_dir_all(schema_root())?;
+    for document in schema_documents() {
+        std::fs::write(schema_root().join(document.file_name), document.contents)?;
+    }
+    Ok(())
 }
 
 pub fn schema_root() -> PathBuf {

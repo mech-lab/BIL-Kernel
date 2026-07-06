@@ -1,0 +1,377 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstitutionalProfilesDocument",
+  "type": "object",
+  "required": [
+    "ai_assurance",
+    "banking",
+    "insurance",
+    "legal_governance",
+    "schema_version"
+  ],
+  "properties": {
+    "ai_assurance": {
+      "$ref": "#/definitions/AiAssuranceProfile"
+    },
+    "banking": {
+      "$ref": "#/definitions/BankingProfile"
+    },
+    "insurance": {
+      "$ref": "#/definitions/InsuranceProfile"
+    },
+    "legal_governance": {
+      "$ref": "#/definitions/LegalGovernanceProfile"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "AiAssuranceProfile": {
+      "type": "object",
+      "required": [
+        "assurance_case_id",
+        "assurance_outcome",
+        "control_summaries",
+        "decision_traceability",
+        "human_review_status",
+        "linked_axle_artifact_path",
+        "linked_coverage_case_ids",
+        "linked_exposure_ids",
+        "model_identifier",
+        "referenced_control_ids",
+        "referenced_risk_ids",
+        "risk_summaries",
+        "system_identifier"
+      ],
+      "properties": {
+        "assurance_case_id": {
+          "type": "string"
+        },
+        "assurance_outcome": {
+          "type": "string"
+        },
+        "control_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ControlSummaryRef"
+          }
+        },
+        "decision_traceability": {
+          "type": "string"
+        },
+        "human_review_status": {
+          "type": "string"
+        },
+        "linked_axle_artifact_path": {
+          "type": "string"
+        },
+        "linked_coverage_case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "linked_exposure_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "model_identifier": {
+          "type": "string"
+        },
+        "referenced_control_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "referenced_risk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RiskSummaryRef"
+          }
+        },
+        "system_identifier": {
+          "type": "string"
+        }
+      }
+    },
+    "BankingProfile": {
+      "type": "object",
+      "required": [
+        "control_summaries",
+        "counterparty",
+        "currency",
+        "decision_context",
+        "decision_outcome",
+        "exposure_amount",
+        "exposure_id",
+        "governing_policy_refs",
+        "product_type",
+        "referenced_control_ids",
+        "referenced_risk_ids",
+        "review_status",
+        "risk_summaries"
+      ],
+      "properties": {
+        "control_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ControlSummaryRef"
+          }
+        },
+        "counterparty": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "decision_context": {
+          "type": "string"
+        },
+        "decision_outcome": {
+          "type": "string"
+        },
+        "exposure_amount": {
+          "type": "string"
+        },
+        "exposure_id": {
+          "type": "string"
+        },
+        "governing_policy_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "product_type": {
+          "type": "string"
+        },
+        "referenced_control_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "referenced_risk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_status": {
+          "type": "string"
+        },
+        "risk_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RiskSummaryRef"
+          }
+        }
+      }
+    },
+    "ControlSummaryRef": {
+      "type": "object",
+      "required": [
+        "control_id",
+        "control_type",
+        "status",
+        "title"
+      ],
+      "properties": {
+        "control_id": {
+          "type": "string"
+        },
+        "control_type": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "InsuranceProfile": {
+      "type": "object",
+      "required": [
+        "control_summaries",
+        "coverage_case_id",
+        "coverage_context",
+        "coverage_type",
+        "decision_outcome",
+        "insured_amount",
+        "insured_party",
+        "policy_refs",
+        "referenced_control_ids",
+        "referenced_risk_ids",
+        "review_status",
+        "risk_summaries"
+      ],
+      "properties": {
+        "control_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ControlSummaryRef"
+          }
+        },
+        "coverage_case_id": {
+          "type": "string"
+        },
+        "coverage_context": {
+          "type": "string"
+        },
+        "coverage_type": {
+          "type": "string"
+        },
+        "decision_outcome": {
+          "type": "string"
+        },
+        "insured_amount": {
+          "type": "string"
+        },
+        "insured_party": {
+          "type": "string"
+        },
+        "policy_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "referenced_control_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "referenced_risk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_status": {
+          "type": "string"
+        },
+        "risk_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RiskSummaryRef"
+          }
+        }
+      }
+    },
+    "LegalGovernanceProfile": {
+      "type": "object",
+      "required": [
+        "compliance_posture",
+        "control_summaries",
+        "governing_authority_refs",
+        "liability_posture",
+        "linked_assurance_case_ids",
+        "linked_coverage_case_ids",
+        "linked_exposure_ids",
+        "matter_id",
+        "referenced_control_ids",
+        "referenced_risk_ids",
+        "rights_and_duties_summary",
+        "risk_summaries"
+      ],
+      "properties": {
+        "compliance_posture": {
+          "type": "string"
+        },
+        "control_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ControlSummaryRef"
+          }
+        },
+        "governing_authority_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "liability_posture": {
+          "type": "string"
+        },
+        "linked_assurance_case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "linked_coverage_case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "linked_exposure_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "matter_id": {
+          "type": "string"
+        },
+        "referenced_control_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "referenced_risk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rights_and_duties_summary": {
+          "type": "string"
+        },
+        "risk_summaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RiskSummaryRef"
+          }
+        }
+      }
+    },
+    "RiskSummaryRef": {
+      "type": "object",
+      "required": [
+        "risk_id",
+        "severity",
+        "status",
+        "title"
+      ],
+      "properties": {
+        "risk_id": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

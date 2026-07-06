@@ -159,7 +159,11 @@ dependencies = [
  "bil-axle",
  "bil-core",
  "bil-hash",
+ "bil-legal",
  "bil-merkle",
+ "bil-policy",
+ "bil-receipt",
+ "bil-risk",
  "bil-verify",
  "serde",
  "serde_json",
@@ -227,6 +231,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "bil-legal"
+version = "0.1.0"
+dependencies = [
+ "bil-core",
+]
+
+[[package]]
 name = "bil-merkle"
 version = "0.1.0"
 dependencies = [
@@ -235,6 +246,13 @@ dependencies = [
  "hex",
  "sha2",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "bil-policy"
+version = "0.1.0"
+dependencies = [
+ "bil-core",
 ]
 
 [[package]]
@@ -264,6 +282,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bil-risk"
+version = "0.1.0"
+dependencies = [
+ "bil-core",
+ "serde_json",
+]
+
+[[package]]
 name = "bil-schema"
 version = "0.1.0"
 dependencies = [
@@ -282,8 +308,11 @@ dependencies = [
  "bil-bundle",
  "bil-core",
  "bil-hash",
+ "bil-legal",
  "bil-merkle",
+ "bil-policy",
  "bil-receipt",
+ "bil-risk",
  "chrono",
  "ed25519-dalek",
  "rand 0.8.6",

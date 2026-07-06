@@ -3,20 +3,34 @@
   "title": "VerificationReport",
   "type": "object",
   "required": [
+    "ai_assurance_profile_verified",
+    "banking_profile_verified",
     "bundle_path",
     "bundle_verified",
+    "controls_registry_verified",
     "covered_file_count",
+    "cross_profile_consistency_verified",
     "findings",
+    "institutional_layer_present",
+    "insurance_profile_verified",
+    "legal_governance_profile_verified",
     "overall_verified",
     "payload_count",
     "receipt_present",
     "receipt_status",
+    "risk_registry_verified",
     "schema_version",
     "signature_valid",
     "trust_verified",
     "verified_entries"
   ],
   "properties": {
+    "ai_assurance_profile_verified": {
+      "type": "boolean"
+    },
+    "banking_profile_verified": {
+      "type": "boolean"
+    },
     "bundle_id": {
       "type": [
         "string",
@@ -39,10 +53,16 @@
     "bundle_verified": {
       "type": "boolean"
     },
+    "controls_registry_verified": {
+      "type": "boolean"
+    },
     "covered_file_count": {
       "type": "integer",
       "format": "uint",
       "minimum": 0.0
+    },
+    "cross_profile_consistency_verified": {
+      "type": "boolean"
     },
     "findings": {
       "type": "array",
@@ -50,11 +70,32 @@
         "$ref": "#/definitions/VerificationFinding"
       }
     },
+    "institutional_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "institutional_layer_present": {
+      "type": "boolean"
+    },
+    "institutional_profile_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "insurance_profile_verified": {
+      "type": "boolean"
+    },
     "key_id": {
       "type": [
         "string",
         "null"
       ]
+    },
+    "legal_governance_profile_verified": {
+      "type": "boolean"
     },
     "merkle_roots": {
       "anyOf": [
@@ -101,6 +142,9 @@
     },
     "receipt_status": {
       "$ref": "#/definitions/ReceiptVerificationStatus"
+    },
+    "risk_registry_verified": {
+      "type": "boolean"
     },
     "schema_version": {
       "type": "string"

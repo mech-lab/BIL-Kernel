@@ -16,11 +16,15 @@ use thiserror::Error;
 
 pub const SCHEMA_VERSION_V0: &str = "v0";
 pub const AXLE_COMPAT_PROFILE_V0: &str = "axle-compat-v0";
+pub const INSTITUTIONAL_PROFILES_V0: &str = "institutional-profiles-v0";
 pub const AXLE_JSON_PATH: &str = "axle.json";
 pub const BUNDLE_JSON_PATH: &str = "bundle.json";
 pub const MANIFEST_JSON_PATH: &str = "manifest.json";
 pub const MERKLE_JSON_PATH: &str = "merkle.json";
 pub const RECEIPT_JSON_PATH: &str = "receipt.json";
+pub const INSTITUTIONAL_JSON_PATH: &str = "institutional.json";
+pub const RISK_JSON_PATH: &str = "risk.json";
+pub const CONTROLS_JSON_PATH: &str = "controls.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
 pub enum AxleArtifactKind {
@@ -353,9 +357,173 @@ impl BundleManifest {
     }
 }
 
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum InstitutionalProfileSection {
+    Banking,
+    Insurance,
+    LegalGovernance,
+    AiAssurance,
+}
+
+impl InstitutionalProfileSection {
+    pub const ALL: [Self; 4] = [
+        Self::Banking,
+        Self::Insurance,
+        Self::LegalGovernance,
+        Self::AiAssurance,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Banking => "banking",
+            Self::Insurance => "insurance",
+            Self::LegalGovernance => "legal_governance",
+            Self::AiAssurance => "ai_assurance",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct RiskSummaryRef {
+    pub risk_id: String,
+    pub title: String,
+    pub severity: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ControlSummaryRef {
+    pub control_id: String,
+    pub title: String,
+    pub control_type: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct BankingProfile {
+    pub exposure_id: String,
+    pub decision_context: String,
+    pub counterparty: String,
+    pub product_type: String,
+    pub currency: String,
+    pub exposure_amount: String,
+    pub decision_outcome: String,
+    pub review_status: String,
+    pub governing_policy_refs: Vec<String>,
+    pub referenced_risk_ids: Vec<String>,
+    pub referenced_control_ids: Vec<String>,
+    pub risk_summaries: Vec<RiskSummaryRef>,
+    pub control_summaries: Vec<ControlSummaryRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct InsuranceProfile {
+    pub coverage_case_id: String,
+    pub coverage_context: String,
+    pub insured_party: String,
+    pub coverage_type: String,
+    pub insured_amount: String,
+    pub decision_outcome: String,
+    pub review_status: String,
+    pub policy_refs: Vec<String>,
+    pub referenced_risk_ids: Vec<String>,
+    pub referenced_control_ids: Vec<String>,
+    pub risk_summaries: Vec<RiskSummaryRef>,
+    pub control_summaries: Vec<ControlSummaryRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct LegalGovernanceProfile {
+    pub matter_id: String,
+    pub rights_and_duties_summary: String,
+    pub liability_posture: String,
+    pub compliance_posture: String,
+    pub governing_authority_refs: Vec<String>,
+    pub linked_exposure_ids: Vec<String>,
+    pub linked_coverage_case_ids: Vec<String>,
+    pub linked_assurance_case_ids: Vec<String>,
+    pub referenced_risk_ids: Vec<String>,
+    pub referenced_control_ids: Vec<String>,
+    pub risk_summaries: Vec<RiskSummaryRef>,
+    pub control_summaries: Vec<ControlSummaryRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct AiAssuranceProfile {
+    pub assurance_case_id: String,
+    pub system_identifier: String,
+    pub model_identifier: String,
+    pub decision_traceability: String,
+    pub human_review_status: String,
+    pub assurance_outcome: String,
+    pub linked_axle_artifact_path: String,
+    pub linked_exposure_ids: Vec<String>,
+    pub linked_coverage_case_ids: Vec<String>,
+    pub referenced_risk_ids: Vec<String>,
+    pub referenced_control_ids: Vec<String>,
+    pub risk_summaries: Vec<RiskSummaryRef>,
+    pub control_summaries: Vec<ControlSummaryRef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct InstitutionalProfilesDocument {
+    pub schema_version: String,
+    pub banking: BankingProfile,
+    pub insurance: InsuranceProfile,
+    pub legal_governance: LegalGovernanceProfile,
+    pub ai_assurance: AiAssuranceProfile,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct RiskRecord {
+    pub risk_id: String,
+    pub title: String,
+    pub category: String,
+    pub severity: String,
+    pub status: String,
+    pub owner: String,
+    pub description: String,
+    pub linked_control_ids: Vec<String>,
+    pub linked_profile_sections: Vec<InstitutionalProfileSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ControlRecord {
+    pub control_id: String,
+    pub title: String,
+    pub control_type: String,
+    pub status: String,
+    pub owner: String,
+    pub description: String,
+    pub evidence_paths: Vec<String>,
+    pub mitigated_risk_ids: Vec<String>,
+    pub linked_profile_sections: Vec<InstitutionalProfileSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct RiskRegistryDocument {
+    pub schema_version: String,
+    pub risks: Vec<RiskRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ControlRegistryDocument {
+    pub schema_version: String,
+    pub controls: Vec<ControlRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Default)]
 pub struct BundlePayloadPaths {
     pub axle: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institutional: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub risk: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub controls: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -364,6 +532,10 @@ pub struct BundleDescriptor {
     pub bundle_kind: BundleKind,
     pub bundle_id: String,
     pub profile_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institutional_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institutional_profile_version: Option<String>,
     pub manifest_path: String,
     pub merkle_path: String,
     pub payload_paths: BundlePayloadPaths,
@@ -454,6 +626,10 @@ pub struct ReceiptClaims {
     pub bundle_id: String,
     pub bundle_kind: BundleKind,
     pub profile_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institutional_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institutional_profile_version: Option<String>,
     pub issued_at: String,
     pub covered_files: Vec<CoveredFile>,
 }
@@ -495,6 +671,8 @@ pub struct VerificationReport {
     pub bundle_id: Option<String>,
     pub bundle_kind: Option<BundleKind>,
     pub profile_version: Option<String>,
+    pub institutional_kind: Option<String>,
+    pub institutional_profile_version: Option<String>,
     pub payload_count: usize,
     pub verified_entries: Vec<ManifestEntry>,
     pub merkle_roots: Option<DigestSet>,
@@ -506,6 +684,14 @@ pub struct VerificationReport {
     pub key_id: Option<String>,
     pub covered_file_count: usize,
     pub bundle_verified: bool,
+    pub institutional_layer_present: bool,
+    pub banking_profile_verified: bool,
+    pub insurance_profile_verified: bool,
+    pub legal_governance_profile_verified: bool,
+    pub ai_assurance_profile_verified: bool,
+    pub risk_registry_verified: bool,
+    pub controls_registry_verified: bool,
+    pub cross_profile_consistency_verified: bool,
     pub signature_valid: bool,
     pub trust_verified: bool,
     pub overall_verified: bool,
@@ -688,5 +874,29 @@ mod tests {
 
         let artifact = AxleArtifactKind::Document.parse_payload(payload).unwrap();
         assert!(matches!(artifact, AxleArtifact::Document(_)));
+    }
+
+    #[test]
+    fn payload_paths_omit_absent_institutional_fields() {
+        let descriptor = BundleDescriptor {
+            schema_version: SCHEMA_VERSION_V0.to_string(),
+            bundle_kind: BundleKind::AxleEvidence,
+            bundle_id: "bil:v0:sha256:abc".to_string(),
+            profile_version: AXLE_COMPAT_PROFILE_V0.to_string(),
+            institutional_kind: None,
+            institutional_profile_version: None,
+            manifest_path: MANIFEST_JSON_PATH.to_string(),
+            merkle_path: MERKLE_JSON_PATH.to_string(),
+            payload_paths: BundlePayloadPaths {
+                axle: AXLE_JSON_PATH.to_string(),
+                institutional: None,
+                risk: None,
+                controls: None,
+            },
+        };
+
+        let value = serde_json::to_value(&descriptor).unwrap();
+        assert!(value.get("institutional_kind").is_none());
+        assert!(value["payload_paths"].get("institutional").is_none());
     }
 }

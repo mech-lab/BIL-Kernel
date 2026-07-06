@@ -1,6 +1,6 @@
 # BIL Verification v0
 
-Phase 2 verification extends Phase 1 bundle integrity checks with optional receipt and trust validation.
+Verification is cumulative. Phase 2 extends Phase 1 bundle integrity checks with receipt validation, and Phase 3 extends the report with institutional profile validation.
 
 ## Bundle Integrity
 
@@ -13,6 +13,17 @@ Verification always checks:
 - manifest SHA-256 and BLAKE3 digests
 - Merkle recomputation
 - `bundle_id` consistency with the SHA-256 Merkle root
+
+If the bundle declares the institutional layer, verification also checks:
+
+- `institutional.json`, `risk.json`, and `controls.json` presence
+- institutional marker alignment in `bundle.json`
+- banking, insurance, legal governance, and AI assurance section completeness
+- referenced risk/control IDs against canonical registries
+- duplicated risk/control summaries against canonical registry records
+- reciprocal risk/control links
+- linked-profile-section accuracy against actual institutional usage
+- legal and AI assurance cross-profile identifier links
 
 ## Receipt Processing
 
@@ -54,9 +65,17 @@ Any extra uncovered file or missing covered file fails receipt verification.
 
 ## Report Model
 
-Phase 2 verification emits a structured report with separate status fields for:
+Verification emits a structured report with separate status fields for:
 
 - `bundle_verified`
+- `institutional_layer_present`
+- `banking_profile_verified`
+- `insurance_profile_verified`
+- `legal_governance_profile_verified`
+- `ai_assurance_profile_verified`
+- `risk_registry_verified`
+- `controls_registry_verified`
+- `cross_profile_consistency_verified`
 - `receipt_present`
 - `signature_valid`
 - `trust_verified`

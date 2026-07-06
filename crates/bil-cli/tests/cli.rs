@@ -8,6 +8,104 @@ fn ed25519_private_key_der() -> Vec<u8> {
     signing_key.to_pkcs8_der().unwrap().as_bytes().to_vec()
 }
 
+fn institutional_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": "v0",
+        "banking": {
+            "exposure_id": "exp-1",
+            "decision_context": "ctx",
+            "counterparty": "cp",
+            "product_type": "loan",
+            "currency": "USD",
+            "exposure_amount": "100",
+            "decision_outcome": "approved",
+            "review_status": "reviewed",
+            "governing_policy_refs": [],
+            "referenced_risk_ids": ["risk-1"],
+            "referenced_control_ids": ["control-1"],
+            "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+            "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+        },
+        "insurance": {
+            "coverage_case_id": "cov-1",
+            "coverage_context": "ctx",
+            "insured_party": "party",
+            "coverage_type": "liability",
+            "insured_amount": "100",
+            "decision_outcome": "bound",
+            "review_status": "reviewed",
+            "policy_refs": [],
+            "referenced_risk_ids": ["risk-1"],
+            "referenced_control_ids": ["control-1"],
+            "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+            "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+        },
+        "legal_governance": {
+            "matter_id": "matter-1",
+            "rights_and_duties_summary": "summary",
+            "liability_posture": "contained",
+            "compliance_posture": "compliant",
+            "governing_authority_refs": [],
+            "linked_exposure_ids": ["exp-1"],
+            "linked_coverage_case_ids": ["cov-1"],
+            "linked_assurance_case_ids": ["assure-1"],
+            "referenced_risk_ids": ["risk-1"],
+            "referenced_control_ids": ["control-1"],
+            "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+            "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+        },
+        "ai_assurance": {
+            "assurance_case_id": "assure-1",
+            "system_identifier": "system",
+            "model_identifier": "model",
+            "decision_traceability": "trace",
+            "human_review_status": "complete",
+            "assurance_outcome": "pass",
+            "linked_axle_artifact_path": "axle.json",
+            "linked_exposure_ids": ["exp-1"],
+            "linked_coverage_case_ids": ["cov-1"],
+            "referenced_risk_ids": ["risk-1"],
+            "referenced_control_ids": ["control-1"],
+            "risk_summaries": [{"risk_id":"risk-1","title":"Model drift","severity":"high","status":"open"}],
+            "control_summaries": [{"control_id":"control-1","title":"Human review","control_type":"review","status":"active"}]
+        }
+    })
+}
+
+fn risk_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": "v0",
+        "risks": [{
+            "risk_id":"risk-1",
+            "title":"Model drift",
+            "category":"operational",
+            "severity":"high",
+            "status":"open",
+            "owner":"risk",
+            "description":"desc",
+            "linked_control_ids":["control-1"],
+            "linked_profile_sections":["banking","insurance","legal_governance","ai_assurance"]
+        }]
+    })
+}
+
+fn controls_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": "v0",
+        "controls": [{
+            "control_id":"control-1",
+            "title":"Human review",
+            "control_type":"review",
+            "status":"active",
+            "owner":"ops",
+            "description":"desc",
+            "evidence_paths":["axle.json"],
+            "mitigated_risk_ids":["risk-1"],
+            "linked_profile_sections":["banking","insurance","legal_governance","ai_assurance"]
+        }]
+    })
+}
+
 #[test]
 fn status_prints_health_payload() {
     let mut server = mockito::Server::new();
@@ -276,4 +374,89 @@ fn bundle_inspect_supports_markdown_and_verification_exit_code_two() {
         .args(["bundle", "inspect", bundle_path.to_str().unwrap()])
         .assert()
         .code(2);
+}
+
+#[test]
+fn bundle_institutionalize_updates_bundle_and_inspect_reports_statuses() {
+    let payload = NamedTempFile::new().unwrap();
+    std::fs::write(
+        payload.path(),
+        r#"{"okay":true,"content":"theorem foo : 1 = 1 := rfl","lean_messages":{"errors":[],"warnings":[],"infos":[]},"tool_messages":{"errors":[],"warnings":[],"infos":[]},"failed_declarations":[],"timings":{"total":10},"info":null}"#,
+    )
+    .unwrap();
+    let institutional = NamedTempFile::new().unwrap();
+    let risk = NamedTempFile::new().unwrap();
+    let controls = NamedTempFile::new().unwrap();
+    std::fs::write(
+        institutional.path(),
+        serde_json::to_vec(&institutional_json()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(risk.path(), serde_json::to_vec(&risk_json()).unwrap()).unwrap();
+    std::fs::write(
+        controls.path(),
+        serde_json::to_vec(&controls_json()).unwrap(),
+    )
+    .unwrap();
+
+    let temp = TempDir::new().unwrap();
+    let bundle_path = temp.path().join("proof.bil");
+    let mut create = Command::cargo_bin("bil").unwrap();
+    create
+        .args([
+            "bundle",
+            "create",
+            "--axle",
+            payload.path().to_str().unwrap(),
+            "--axle-kind",
+            "verify-proof",
+            "--out",
+            bundle_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let mut institutionalize = Command::cargo_bin("bil").unwrap();
+    institutionalize
+        .args([
+            "bundle",
+            "institutionalize",
+            bundle_path.to_str().unwrap(),
+            "--institutional",
+            institutional.path().to_str().unwrap(),
+            "--risk",
+            risk.path().to_str().unwrap(),
+            "--controls",
+            controls.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"institutional_kind\": \"institutional-profiles-v0\"",
+        ));
+
+    let mut inspect = Command::cargo_bin("bil").unwrap();
+    inspect
+        .args(["bundle", "inspect", bundle_path.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"institutional_layer_present\": true",
+        ))
+        .stdout(predicate::str::contains(
+            "\"cross_profile_consistency_verified\": true",
+        ));
+
+    let mut markdown = Command::cargo_bin("bil").unwrap();
+    markdown
+        .args([
+            "bundle",
+            "inspect",
+            bundle_path.to_str().unwrap(),
+            "--format",
+            "markdown",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("## Institutional Status"));
 }

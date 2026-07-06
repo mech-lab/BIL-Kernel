@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ControlRegistryDocument",
+  "type": "object",
+  "required": [
+    "controls",
+    "schema_version"
+  ],
+  "properties": {
+    "controls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ControlRecord"
+      }
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "ControlRecord": {
+      "type": "object",
+      "required": [
+        "control_id",
+        "control_type",
+        "description",
+        "evidence_paths",
+        "linked_profile_sections",
+        "mitigated_risk_ids",
+        "owner",
+        "status",
+        "title"
+      ],
+      "properties": {
+        "control_id": {
+          "type": "string"
+        },
+        "control_type": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "evidence_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "linked_profile_sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/InstitutionalProfileSection"
+          }
+        },
+        "mitigated_risk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owner": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "InstitutionalProfileSection": {
+      "type": "string",
+      "enum": [
+        "banking",
+        "insurance",
+        "legal_governance",
+        "ai_assurance"
+      ]
+    }
+  }
+}
