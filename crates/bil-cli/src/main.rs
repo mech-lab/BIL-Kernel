@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
-use bil_bundle::{BundleBuilder, BundleReader};
+use bil_bundle::{BundleBuilder, BundleInspectOptions, BundleReader};
 use bil_client::AxleClient;
-use bil_core::{AxleArtifactKind, BundleKind, DigestSet};
+use bil_core::{AxleArtifactKind, BundleKind, DigestSet, ReceiptMode, SignatureAlgorithm};
 use bil_hash::{canonical_json_slice, digest_bytes};
-use clap::{ArgAction, Args, Parser, Subcommand};
+use bil_receipt::{ReceiptIssueOptions, ReceiptIssuer};
+use bil_report::render_markdown;
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use std::fs;
 use std::io::{self, Read};
@@ -26,6 +28,7 @@ enum Command {
     Axle(AxleArgs),
     Hash(HashArgs),
     Bundle(BundleArgs),
+    Receipt(ReceiptArgs),
 }
 
 #[derive(Debug, Args)]
@@ -60,10 +63,21 @@ struct BundleArgs {
     command: BundleCommand,
 }
 
+#[derive(Debug, Args)]
+struct ReceiptArgs {
+    #[command(subcommand)]
+    command: ReceiptCommand,
+}
+
 #[derive(Debug, Subcommand)]
 enum BundleCommand {
     Create(BundleCreateArgs),
     Inspect(BundleInspectArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ReceiptCommand {
+    Issue(ReceiptIssueArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -148,6 +162,32 @@ struct BundleCreateArgs {
 struct BundleInspectArgs {
     #[arg(value_name = "DIR")]
     bundle_path: String,
+    #[arg(long, value_name = "FILE")]
+    receipt: Option<String>,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    #[arg(long = "trust-key", value_name = "FILE")]
+    trust_keys: Vec<String>,
+    #[arg(long, action = ArgAction::SetTrue)]
+    require_receipt: bool,
+    #[arg(long, action = ArgAction::SetTrue)]
+    require_trust: bool,
+}
+
+#[derive(Debug, Args)]
+struct ReceiptIssueArgs {
+    #[arg(value_name = "DIR")]
+    bundle_path: String,
+    #[arg(long, value_enum)]
+    mode: ReceiptModeArg,
+    #[arg(long, value_enum)]
+    algorithm: SignatureAlgorithmArg,
+    #[arg(long, value_name = "FILE")]
+    private_key: String,
+    #[arg(long)]
+    issued_at: Option<String>,
+    #[arg(long, value_name = "FILE")]
+    out: Option<String>,
 }
 
 #[derive(Debug, Args, Default)]
@@ -172,6 +212,46 @@ impl CommonArgs {
             Some(false)
         } else {
             None
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum OutputFormat {
+    Json,
+    Markdown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum ReceiptModeArg {
+    Embedded,
+    Detached,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum SignatureAlgorithmArg {
+    Ed25519,
+    EcdsaP256Sha256,
+    RsaPssSha256,
+}
+
+impl From<ReceiptModeArg> for ReceiptMode {
+    fn from(value: ReceiptModeArg) -> Self {
+        match value {
+            ReceiptModeArg::Embedded => ReceiptMode::Embedded,
+            ReceiptModeArg::Detached => ReceiptMode::Detached,
+        }
+    }
+}
+
+impl From<SignatureAlgorithmArg> for SignatureAlgorithm {
+    fn from(value: SignatureAlgorithmArg) -> Self {
+        match value {
+            SignatureAlgorithmArg::Ed25519 => SignatureAlgorithm::Ed25519,
+            SignatureAlgorithmArg::EcdsaP256Sha256 => SignatureAlgorithm::EcdsaP256Sha256,
+            SignatureAlgorithmArg::RsaPssSha256 => SignatureAlgorithm::RsaPssSha256,
         }
     }
 }
@@ -222,6 +302,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Command::Bundle(args) => run_bundle_command(args.command),
+        Command::Receipt(args) => run_receipt_command(args.command),
     }
 }
 
@@ -331,8 +412,51 @@ fn run_bundle_command(command: BundleCommand) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         BundleCommand::Inspect(args) => {
-            let inspection = BundleReader::open(PathBuf::from(&args.bundle_path))?.inspect()?;
-            print_json(&inspection)?;
+            let inspection = BundleReader::open(PathBuf::from(&args.bundle_path))?
+                .inspect_with_options(&BundleInspectOptions {
+                    receipt_path: args.receipt.map(PathBuf::from),
+                    trust_key_paths: args.trust_keys.into_iter().map(PathBuf::from).collect(),
+                    require_receipt: args.require_receipt,
+                    require_trust: args.require_trust,
+                })?;
+            match args.format {
+                OutputFormat::Json => print_json(&inspection)?,
+                OutputFormat::Markdown => print_markdown(&render_markdown(&inspection)),
+            }
+            if inspection.overall_verified {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                Ok(ExitCode::from(2))
+            }
+        }
+    }
+}
+
+fn run_receipt_command(command: ReceiptCommand) -> Result<ExitCode> {
+    match command {
+        ReceiptCommand::Issue(args) => {
+            let private_key_der = fs::read(&args.private_key).with_context(|| {
+                format!("failed to read private key DER from {}", args.private_key)
+            })?;
+            let materialized = ReceiptIssuer::new().issue(
+                PathBuf::from(&args.bundle_path),
+                &private_key_der,
+                ReceiptIssueOptions {
+                    mode: args.mode.into(),
+                    algorithm: args.algorithm.into(),
+                    issued_at: args.issued_at,
+                    out: args.out.map(PathBuf::from),
+                },
+            )?;
+            let output = ReceiptIssueOutput {
+                receipt_path: materialized.receipt_path.display().to_string(),
+                receipt_mode: materialized.document.claims.receipt_mode,
+                algorithm: materialized.document.signature.algorithm,
+                bundle_id: materialized.document.claims.bundle_id,
+                key_id: materialized.document.signature.key_id,
+                covered_file_count: materialized.document.claims.covered_files.len(),
+            };
+            print_json(&output)?;
             Ok(ExitCode::SUCCESS)
         }
     }
@@ -374,6 +498,10 @@ where
     Ok(())
 }
 
+fn print_markdown(markdown: &str) {
+    println!("{markdown}");
+}
+
 fn list_option(values: Vec<String>) -> Option<Vec<String>> {
     if values.is_empty() {
         None
@@ -401,4 +529,14 @@ struct BundleCreateOutput {
     bundle_id: String,
     payload_count: usize,
     merkle_roots: DigestSet,
+}
+
+#[derive(Debug, Serialize)]
+struct ReceiptIssueOutput {
+    receipt_path: String,
+    receipt_mode: ReceiptMode,
+    algorithm: SignatureAlgorithm,
+    bundle_id: String,
+    key_id: String,
+    covered_file_count: usize,
 }

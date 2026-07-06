@@ -1,0 +1,235 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VerificationReport",
+  "type": "object",
+  "required": [
+    "bundle_path",
+    "bundle_verified",
+    "covered_file_count",
+    "findings",
+    "overall_verified",
+    "payload_count",
+    "receipt_present",
+    "receipt_status",
+    "schema_version",
+    "signature_valid",
+    "trust_verified",
+    "verified_entries"
+  ],
+  "properties": {
+    "bundle_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bundle_kind": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/BundleKind"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bundle_path": {
+      "type": "string"
+    },
+    "bundle_verified": {
+      "type": "boolean"
+    },
+    "covered_file_count": {
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0.0
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/VerificationFinding"
+      }
+    },
+    "key_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "merkle_roots": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DigestSet"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "overall_verified": {
+      "type": "boolean"
+    },
+    "payload_count": {
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0.0
+    },
+    "profile_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "receipt_mode": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ReceiptMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "receipt_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "receipt_present": {
+      "type": "boolean"
+    },
+    "receipt_status": {
+      "$ref": "#/definitions/ReceiptVerificationStatus"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "signature_algorithm": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SignatureAlgorithm"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "signature_valid": {
+      "type": "boolean"
+    },
+    "trust_verified": {
+      "type": "boolean"
+    },
+    "verified_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ManifestEntry"
+      }
+    }
+  },
+  "definitions": {
+    "BundleKind": {
+      "type": "string",
+      "enum": [
+        "axle-evidence"
+      ]
+    },
+    "CanonicalizationMode": {
+      "type": "string",
+      "enum": [
+        "json-canonical-v0",
+        "raw-bytes-v0"
+      ]
+    },
+    "DigestSet": {
+      "type": "object",
+      "required": [
+        "blake3",
+        "sha256"
+      ],
+      "properties": {
+        "blake3": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "ManifestEntry": {
+      "type": "object",
+      "required": [
+        "byte_length",
+        "canonicalization",
+        "digests",
+        "logical_path",
+        "media_type"
+      ],
+      "properties": {
+        "byte_length": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "canonicalization": {
+          "$ref": "#/definitions/CanonicalizationMode"
+        },
+        "digests": {
+          "$ref": "#/definitions/DigestSet"
+        },
+        "logical_path": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": "string"
+        }
+      }
+    },
+    "ReceiptMode": {
+      "type": "string",
+      "enum": [
+        "embedded",
+        "detached"
+      ]
+    },
+    "ReceiptVerificationStatus": {
+      "type": "string",
+      "enum": [
+        "missing",
+        "verified",
+        "untrusted",
+        "invalid"
+      ]
+    },
+    "SignatureAlgorithm": {
+      "type": "string",
+      "enum": [
+        "ed25519",
+        "ecdsa-p256-sha256",
+        "rsa-pss-sha256"
+      ]
+    },
+    "VerificationFinding": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "logical_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

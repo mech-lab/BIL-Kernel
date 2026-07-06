@@ -20,6 +20,7 @@ pub const AXLE_JSON_PATH: &str = "axle.json";
 pub const BUNDLE_JSON_PATH: &str = "bundle.json";
 pub const MANIFEST_JSON_PATH: &str = "manifest.json";
 pub const MERKLE_JSON_PATH: &str = "merkle.json";
+pub const RECEIPT_JSON_PATH: &str = "receipt.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
 pub enum AxleArtifactKind {
@@ -415,6 +416,100 @@ pub struct MerkleDocument {
     pub leaf_order: Vec<String>,
     pub leaves: Vec<MerkleLeaf>,
     pub trees: MerkleTrees,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReceiptMode {
+    Embedded,
+    Detached,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum CoverageScope {
+    PreReceiptBundleFilesV0,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SignatureAlgorithm {
+    Ed25519,
+    EcdsaP256Sha256,
+    RsaPssSha256,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct CoveredFile {
+    pub logical_path: String,
+    pub byte_length: u64,
+    pub digests: DigestSet,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ReceiptClaims {
+    pub schema_version: String,
+    pub receipt_mode: ReceiptMode,
+    pub coverage_scope: CoverageScope,
+    pub bundle_id: String,
+    pub bundle_kind: BundleKind,
+    pub profile_version: String,
+    pub issued_at: String,
+    pub covered_files: Vec<CoveredFile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ReceiptSignature {
+    pub algorithm: SignatureAlgorithm,
+    pub key_id: String,
+    pub public_key_der_b64: String,
+    pub signature_b64: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ReceiptDocument {
+    pub claims: ReceiptClaims,
+    pub signature: ReceiptSignature,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReceiptVerificationStatus {
+    Missing,
+    Verified,
+    Untrusted,
+    Invalid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct VerificationFinding {
+    pub code: String,
+    pub message: String,
+    pub logical_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct VerificationReport {
+    pub schema_version: String,
+    pub bundle_path: String,
+    pub bundle_id: Option<String>,
+    pub bundle_kind: Option<BundleKind>,
+    pub profile_version: Option<String>,
+    pub payload_count: usize,
+    pub verified_entries: Vec<ManifestEntry>,
+    pub merkle_roots: Option<DigestSet>,
+    pub receipt_present: bool,
+    pub receipt_status: ReceiptVerificationStatus,
+    pub receipt_mode: Option<ReceiptMode>,
+    pub receipt_path: Option<String>,
+    pub signature_algorithm: Option<SignatureAlgorithm>,
+    pub key_id: Option<String>,
+    pub covered_file_count: usize,
+    pub bundle_verified: bool,
+    pub signature_valid: bool,
+    pub trust_verified: bool,
+    pub overall_verified: bool,
+    pub findings: Vec<VerificationFinding>,
 }
 
 #[derive(Debug, Error)]

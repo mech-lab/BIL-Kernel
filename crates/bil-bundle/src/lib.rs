@@ -1,12 +1,13 @@
 use bil_core::{
     AXLE_COMPAT_PROFILE_V0, AXLE_JSON_PATH, AxleArtifactKind, AxleEvidenceRecord, BUNDLE_JSON_PATH,
     BundleDescriptor, BundleKind, BundleManifest, BundlePayloadPaths, CanonicalizationMode,
-    CoreError, DigestSet, MANIFEST_JSON_PATH, MERKLE_JSON_PATH, ManifestEntry, MerkleDocument,
-    SCHEMA_VERSION_V0,
+    CoreError, MANIFEST_JSON_PATH, MERKLE_JSON_PATH, ManifestEntry, MerkleDocument,
+    SCHEMA_VERSION_V0, VerificationReport,
 };
-use bil_hash::{HashError, canonical_json_bytes, canonical_json_slice, digest_bytes};
+use bil_hash::{HashError, canonical_json_bytes, digest_bytes};
 use bil_merkle::{MerkleError, build_manifest_tree};
-use serde::{Deserialize, Serialize};
+use bil_verify::{BundleVerifier, VerificationError, VerificationOptions};
+use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -107,44 +108,16 @@ impl BundleReader {
     }
 
     pub fn inspect(&self) -> Result<BundleInspection, BundleError> {
-        let descriptor: BundleDescriptor = read_json(self.root.join(BUNDLE_JSON_PATH))?;
-        let manifest: BundleManifest = read_json(self.root.join(&descriptor.manifest_path))?;
-        let manifest = manifest.normalized()?;
-        let merkle: MerkleDocument = read_json(self.root.join(&descriptor.merkle_path))?;
-        let axle: AxleEvidenceRecord = read_json(self.root.join(&descriptor.payload_paths.axle))?;
-        axle.parse_artifact()?;
+        self.inspect_with_options(&BundleInspectOptions::default())
+    }
 
-        let verified_entries = manifest
-            .entries
-            .iter()
-            .map(|entry| verify_manifest_entry(&self.root, entry))
-            .collect::<Result<Vec<_>, _>>()?;
-        let rebuilt_merkle = build_manifest_tree(&manifest)?;
-        if rebuilt_merkle != merkle {
-            return Err(BundleError::MerkleMismatch);
-        }
-
-        let expected_bundle_id = format!("bil:v0:sha256:{}", merkle.trees.sha256.root);
-        if descriptor.bundle_id != expected_bundle_id {
-            return Err(BundleError::BundleIdMismatch {
-                expected: expected_bundle_id,
-                actual: descriptor.bundle_id.clone(),
-            });
-        }
-
-        Ok(BundleInspection {
-            schema_version: descriptor.schema_version,
-            bundle_kind: descriptor.bundle_kind,
-            bundle_id: descriptor.bundle_id,
-            profile_version: descriptor.profile_version,
-            payload_count: verified_entries.len(),
-            verified_entries,
-            merkle_roots: DigestSet {
-                sha256: merkle.trees.sha256.root,
-                blake3: merkle.trees.blake3.root,
-            },
-            verified: true,
-        })
+    pub fn inspect_with_options(
+        &self,
+        options: &BundleInspectOptions,
+    ) -> Result<BundleInspection, BundleError> {
+        BundleVerifier::new()
+            .verify(&self.root, options)
+            .map_err(BundleError::Verify)
     }
 }
 
@@ -157,17 +130,8 @@ pub struct BundleMaterialization {
     pub output_dir: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BundleInspection {
-    pub schema_version: String,
-    pub bundle_kind: BundleKind,
-    pub bundle_id: String,
-    pub profile_version: String,
-    pub payload_count: usize,
-    pub verified_entries: Vec<ManifestEntry>,
-    pub merkle_roots: DigestSet,
-    pub verified: bool,
-}
+pub type BundleInspectOptions = VerificationOptions;
+pub type BundleInspection = VerificationReport;
 
 #[derive(Debug, Error)]
 pub enum BundleError {
@@ -185,12 +149,8 @@ pub enum BundleError {
     Hash(#[from] HashError),
     #[error("merkle construction failed: {0}")]
     Merkle(#[from] MerkleError),
-    #[error("canonical payload digest mismatch for {logical_path}")]
-    DigestMismatch { logical_path: String },
-    #[error("bundle merkle document does not match the manifest")]
-    MerkleMismatch,
-    #[error("bundle id mismatch: expected {expected}, found {actual}")]
-    BundleIdMismatch { expected: String, actual: String },
+    #[error("bundle verification failed: {0}")]
+    Verify(#[from] VerificationError),
 }
 
 fn validate_bundle_dir(path: &Path) -> Result<(), BundleError> {
@@ -214,44 +174,6 @@ where
     let bytes = canonical_json_bytes(value)?;
     fs::write(path, bytes)?;
     Ok(())
-}
-
-fn read_json<T>(path: PathBuf) -> Result<T, BundleError>
-where
-    T: for<'de> Deserialize<'de>,
-{
-    let bytes = fs::read(path)?;
-    Ok(serde_json::from_slice(&bytes)?)
-}
-
-fn verify_manifest_entry(root: &Path, entry: &ManifestEntry) -> Result<ManifestEntry, BundleError> {
-    let path = root.join(&entry.logical_path);
-    let bytes = fs::read(&path)?;
-    let candidate = match entry.canonicalization {
-        CanonicalizationMode::JsonCanonicalV0 => canonical_json_slice(&bytes)?,
-        CanonicalizationMode::RawBytesV0 => bytes.clone(),
-    };
-
-    if candidate != bytes {
-        return Err(BundleError::DigestMismatch {
-            logical_path: entry.logical_path.clone(),
-        });
-    }
-
-    if entry.byte_length != candidate.len() as u64 {
-        return Err(BundleError::DigestMismatch {
-            logical_path: entry.logical_path.clone(),
-        });
-    }
-
-    let digests = digest_bytes(&candidate);
-    if digests != entry.digests {
-        return Err(BundleError::DigestMismatch {
-            logical_path: entry.logical_path.clone(),
-        });
-    }
-
-    Ok(entry.clone())
 }
 
 #[cfg(test)]
@@ -313,7 +235,8 @@ mod tests {
             .unwrap();
 
         let inspection = BundleReader::open(&bundle_path).unwrap().inspect().unwrap();
-        assert!(inspection.verified);
+        assert!(inspection.bundle_verified);
+        assert!(inspection.overall_verified);
         assert_eq!(inspection.payload_count, 1);
         assert_eq!(inspection.verified_entries[0].logical_path, AXLE_JSON_PATH);
     }
@@ -336,11 +259,10 @@ mod tests {
         )
         .unwrap();
 
-        let error = BundleReader::open(&bundle_path)
-            .unwrap()
-            .inspect()
-            .unwrap_err();
-        assert!(matches!(error, BundleError::DigestMismatch { .. }));
+        let inspection = BundleReader::open(&bundle_path).unwrap().inspect().unwrap();
+        assert!(!inspection.bundle_verified);
+        assert!(!inspection.overall_verified);
+        assert!(!inspection.findings.is_empty());
     }
 
     #[test]

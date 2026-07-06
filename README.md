@@ -29,13 +29,13 @@ Today, the repository provides:
 * dual SHA-256 and BLAKE3 hashing
 * deterministic Merkle evidence trees
 * `.bil` directory bundle creation and inspection
+* receipt issuance and signature validation
+* JSON and Markdown verification reports
 * committed `v0` schemas and bundle specs
 * a temporary Python compatibility bridge via `axle bil ...`
 
 The near-term kernel roadmap adds:
 
-* cryptographic receipts
-* audit-ready reports
 * banking, insurance, and legal metadata profiles
 * broader CLI tooling for developers and assurance teams
 
@@ -200,7 +200,8 @@ Today it contains:
 ├── axle.json
 ├── bundle.json
 ├── manifest.json
-└── merkle.json
+├── merkle.json
+└── receipt.json           # optional embedded Phase 2 receipt
 ```
 
 Future phases may extend the payload set with files such as:
@@ -303,10 +304,13 @@ bil-kernel/
 │   ├── bil-hash/              # Implemented canonical JSON and dual digests
 │   ├── bil-merkle/            # Implemented deterministic Merkle trees
 │   ├── bil-bundle/            # Implemented `.bil` bundle create / inspect
+│   ├── bil-receipt/           # Implemented receipt issuance and signature handling
+│   ├── bil-verify/            # Implemented bundle and receipt verification
+│   ├── bil-report/            # Implemented Markdown verification rendering
 │   ├── bil-client/            # Implemented Rust async client for AXLE-compatible APIs
 │   └── bil-cli/               # Implemented Rust CLI
-├── schemas/v0/                # Committed Phase 1 schema artifacts
-├── specs/                     # Committed bundle, manifest, merkle, and AXLE profile specs
+├── schemas/v0/                # Committed Phase 1 and Phase 2 schema artifacts
+├── specs/                     # Committed bundle, manifest, merkle, receipt, and verification specs
 ├── axle/                      # Legacy Python AXLE SDK and CLI, including `axle bil ...`
 ├── docs/                      # Existing Python-oriented documentation during transition
 ├── tests/                     # Python bridge and legacy AXLE tests
@@ -337,6 +341,7 @@ bil environments
 bil hash ./payload.json --canonical-json
 bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
 bil bundle inspect ./proof.bil
+bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
 bil axle verify-proof ./proof.lean --formal-statement "..." --environment lean-4.28.0
 bil axle check ./proof.lean --environment lean-4.28.0
 bil axle extract-decls ./proof.lean --environment lean-4.28.0
@@ -373,17 +378,21 @@ Implemented today. Builds deterministic manifest-backed Merkle trees with stable
 
 Implemented today. Creates and inspects unpacked `.bil/` directories containing `axle.json`, `bundle.json`, `manifest.json`, and `merkle.json`.
 
----
-
-## Planned Crates
-
 ### `bil-receipt`
 
-Cryptographic receipt generation and validation.
+Implemented today. Issues embedded and detached receipts, signs canonical claims, and supports `ed25519`, `ecdsa-p256-sha256`, and `rsa-pss-sha256`.
 
 ### `bil-verify`
 
-Verification engine for bundle integrity, receipt validity, schema conformance, and institutional completeness.
+Implemented today. Verifies bundle integrity, receipt coverage, cryptographic signatures, and optional trust-key matches.
+
+### `bil-report`
+
+Implemented today. Renders Markdown verification reports from the structured JSON verification model.
+
+---
+
+## Planned Crates
 
 ### `bil-policy`
 
@@ -396,10 +405,6 @@ Banking, insurance, actuarial, and operational risk metadata.
 ### `bil-legal`
 
 Legal governance, liability, compliance, and evidentiary metadata.
-
-### `bil-report`
-
-Machine-readable and human-readable reports.
 
 ### `bil-wasm`
 
@@ -414,7 +419,9 @@ bil status
 bil environments
 bil hash ./payload.json --canonical-json
 bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
-bil bundle inspect ./proof.bil
+bil bundle inspect ./proof.bil --format json
+bil bundle inspect ./proof.bil --format markdown
+bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
 bil axle verify-proof ./proof.lean --formal-statement "1 = 1" --environment lean-4.28.0
 bil axle check ./proof.lean --environment lean-4.28.0
 bil axle extract-decls ./proof.lean --environment lean-4.28.0
@@ -422,7 +429,7 @@ bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove
 axle bil status
 ```
 
-Receipts, signatures, policy/risk/legal profiles, archive packaging, and report generation remain roadmap work.
+Policy/risk/legal profiles, archive packaging, and richer interop remain roadmap work.
 
 ---
 
@@ -431,8 +438,6 @@ Receipts, signatures, policy/risk/legal profiles, archive packaging, and report 
 ```bash
 bil init
 bil import axle ./verify-proof-response.json
-bil receipt issue decision.bil
-bil verify decision.bil
 bil report decision.bil --format markdown
 bil report decision.bil --format json
 bil report decision.bil --format sarif
@@ -470,6 +475,18 @@ Inspect and verify the bundle:
 
 ```bash
 bil bundle inspect ./proof.bil
+```
+
+Issue an embedded receipt:
+
+```bash
+bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
+```
+
+Render the verification report in Markdown:
+
+```bash
+bil bundle inspect ./proof.bil --format markdown
 ```
 
 Verify a proof through the Rust client:
@@ -652,17 +669,19 @@ Implemented in this bootstrap:
 6. Deterministic serialization and dual hashing in `bil-hash`
 7. Merkle evidence graph construction in `bil-merkle`
 8. `.bil` bundle manifest and bundle inspection in `bil-bundle`
-9. Expanded Rust CLI in `bil-cli`
-10. Python compatibility bridge via `axle bil ...`
+9. Receipt issuance in `bil-receipt`
+10. Structured verification in `bil-verify`
+11. Markdown report rendering in `bil-report`
+12. Expanded Rust CLI in `bil-cli`
+13. Python compatibility bridge via `axle bil ...`
 
 Next development priorities:
 
-1. receipt format
-2. signature validation
-3. richer verification reports
-4. institutional metadata profiles
-5. example evidence bundles
-6. browser and embedded verification targets
+1. institutional metadata profiles
+2. example evidence bundles
+3. browser and embedded verification targets
+4. archive packaging and portability options
+5. richer interoperability outputs
 
 ---
 
@@ -687,6 +706,8 @@ Implemented:
 * `.bil` bundle directory format
 
 ### Phase 2 — Receipts and Verification
+
+Implemented:
 
 * receipt generation
 * signature validation

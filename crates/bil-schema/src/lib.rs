@@ -1,4 +1,7 @@
-use bil_core::{AxleEvidenceRecord, BundleDescriptor, BundleManifest, MerkleDocument};
+use bil_core::{
+    AxleEvidenceRecord, BundleDescriptor, BundleManifest, MerkleDocument, ReceiptDocument,
+    VerificationReport,
+};
 use schemars::schema_for;
 use std::path::PathBuf;
 
@@ -25,6 +28,14 @@ pub fn schema_documents() -> Vec<SchemaDocument> {
         SchemaDocument {
             file_name: "merkle-document.schema.json",
             contents: pretty_schema(schema_for!(MerkleDocument)),
+        },
+        SchemaDocument {
+            file_name: "receipt-document.schema.json",
+            contents: pretty_schema(schema_for!(ReceiptDocument)),
+        },
+        SchemaDocument {
+            file_name: "verification-report.schema.json",
+            contents: pretty_schema(schema_for!(VerificationReport)),
         },
     ]
 }

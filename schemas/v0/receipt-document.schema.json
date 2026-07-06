@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReceiptDocument",
+  "type": "object",
+  "required": [
+    "claims",
+    "signature"
+  ],
+  "properties": {
+    "claims": {
+      "$ref": "#/definitions/ReceiptClaims"
+    },
+    "signature": {
+      "$ref": "#/definitions/ReceiptSignature"
+    }
+  },
+  "definitions": {
+    "BundleKind": {
+      "type": "string",
+      "enum": [
+        "axle-evidence"
+      ]
+    },
+    "CoverageScope": {
+      "type": "string",
+      "enum": [
+        "pre-receipt-bundle-files-v0"
+      ]
+    },
+    "CoveredFile": {
+      "type": "object",
+      "required": [
+        "byte_length",
+        "digests",
+        "logical_path"
+      ],
+      "properties": {
+        "byte_length": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "digests": {
+          "$ref": "#/definitions/DigestSet"
+        },
+        "logical_path": {
+          "type": "string"
+        }
+      }
+    },
+    "DigestSet": {
+      "type": "object",
+      "required": [
+        "blake3",
+        "sha256"
+      ],
+      "properties": {
+        "blake3": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "ReceiptClaims": {
+      "type": "object",
+      "required": [
+        "bundle_id",
+        "bundle_kind",
+        "coverage_scope",
+        "covered_files",
+        "issued_at",
+        "profile_version",
+        "receipt_mode",
+        "schema_version"
+      ],
+      "properties": {
+        "bundle_id": {
+          "type": "string"
+        },
+        "bundle_kind": {
+          "$ref": "#/definitions/BundleKind"
+        },
+        "coverage_scope": {
+          "$ref": "#/definitions/CoverageScope"
+        },
+        "covered_files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CoveredFile"
+          }
+        },
+        "issued_at": {
+          "type": "string"
+        },
+        "profile_version": {
+          "type": "string"
+        },
+        "receipt_mode": {
+          "$ref": "#/definitions/ReceiptMode"
+        },
+        "schema_version": {
+          "type": "string"
+        }
+      }
+    },
+    "ReceiptMode": {
+      "type": "string",
+      "enum": [
+        "embedded",
+        "detached"
+      ]
+    },
+    "ReceiptSignature": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "key_id",
+        "public_key_der_b64",
+        "signature_b64"
+      ],
+      "properties": {
+        "algorithm": {
+          "$ref": "#/definitions/SignatureAlgorithm"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "public_key_der_b64": {
+          "type": "string"
+        },
+        "signature_b64": {
+          "type": "string"
+        }
+      }
+    },
+    "SignatureAlgorithm": {
+      "type": "string",
+      "enum": [
+        "ed25519",
+        "ecdsa-p256-sha256",
+        "rsa-pss-sha256"
+      ]
+    }
+  }
+}
