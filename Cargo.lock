@@ -278,7 +278,10 @@ dependencies = [
 name = "bil-report"
 version = "0.1.0"
 dependencies = [
+ "bil-bundle",
  "bil-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

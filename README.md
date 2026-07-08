@@ -32,15 +32,16 @@ Today, the repository provides:
 * receipt issuance and signature validation
 * institutional profile enrichment for banking, insurance, legal governance, and AI assurance
 * canonical risk and control registries
-* JSON and Markdown verification reports
+* first-class verification, audit, and regulatory reports
+* JSON and Markdown report output plus SARIF for verification findings
 * committed `v0` schemas and bundle specs
 * a temporary Python compatibility bridge via `axle bil ...`
 
 The near-term kernel roadmap adds:
 
-* broader CLI tooling for developers and assurance teams
-* example institutional evidence bundles
 * archive packaging and portability options
+* broader CLI tooling for developers and assurance teams
+* example corpus expansion and workflow hardening
 
 The kernel is designed to answer one institutional question:
 
@@ -315,7 +316,7 @@ bil-kernel/
 │   ├── bil-bundle/            # Implemented `.bil` bundle create / inspect
 │   ├── bil-receipt/           # Implemented receipt issuance and signature handling
 │   ├── bil-verify/            # Implemented bundle and receipt verification
-│   ├── bil-report/            # Implemented Markdown verification rendering
+│   ├── bil-report/            # Implemented verification, audit, regulatory, and SARIF reports
 │   ├── bil-client/            # Implemented Rust async client for AXLE-compatible APIs
 │   └── bil-cli/               # Implemented Rust CLI
 ├── schemas/v0/                # Committed Phase 1, Phase 2, and Phase 3 schema artifacts
@@ -326,7 +327,7 @@ bil-kernel/
 │   ├── keys/                  # Deterministic non-production Phase 5 signing fixtures
 │   ├── axle-proof-artifact/   # AXLE artifact source + signed embedded-receipt bundle
 │   ├── lean-proof-bundle/     # Lean source + captured response + detached-receipt bundle
-│   └── ai-decision-bundle/    # Institutionalized AI decision example + rendered reports
+│   └── ai-decision-bundle/    # Institutionalized AI decision example + canonical generated reports
 ├── axle/                      # Legacy Python AXLE SDK and CLI, including `axle bil ...`
 ├── docs/                      # Existing Python-oriented documentation during transition
 ├── tests/                     # Python bridge and legacy AXLE tests
@@ -358,6 +359,11 @@ bil hash ./payload.json --canonical-json
 bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof --out proof.bil
 bil bundle institutionalize ./proof.bil --institutional ./institutional.json --risk ./risk.json --controls ./controls.json
 bil bundle inspect ./proof.bil
+bil report ./proof.bil --kind verification --format json
+bil report ./proof.bil --kind verification --format markdown
+bil report ./proof.bil --kind verification --format sarif
+bil report ./proof.bil --kind audit --format markdown
+bil report ./proof.bil --kind regulatory --format markdown
 bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
 bil axle verify-proof ./proof.lean --formal-statement "..." --environment lean-4.28.0
 bil axle check ./proof.lean --environment lean-4.28.0
@@ -405,7 +411,7 @@ Implemented today. Verifies bundle integrity, receipt coverage, cryptographic si
 
 ### `bil-report`
 
-Implemented today. Renders Markdown verification reports from the structured JSON verification model.
+Implemented today. Generates verification, audit, and regulatory reports with JSON and Markdown output, plus SARIF output for verification findings.
 
 ---
 
@@ -435,6 +441,11 @@ bil bundle create --axle ./verify-proof-response.json --axle-kind verify-proof -
 bil bundle institutionalize ./proof.bil --institutional ./institutional.json --risk ./risk.json --controls ./controls.json
 bil bundle inspect ./proof.bil --format json
 bil bundle inspect ./proof.bil --format markdown
+bil report ./proof.bil --kind verification --format json
+bil report ./proof.bil --kind verification --format markdown
+bil report ./proof.bil --kind verification --format sarif
+bil report ./proof.bil --kind audit --format markdown
+bil report ./proof.bil --kind regulatory --format markdown
 bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key ./signing-key.der
 bil axle verify-proof ./proof.lean --formal-statement "1 = 1" --environment lean-4.28.0
 bil axle check ./proof.lean --environment lean-4.28.0
@@ -443,7 +454,7 @@ bil axle normalize ./proof.lean --environment lean-4.28.0 --normalization remove
 axle bil status
 ```
 
-Archive packaging and a first-class report-generation CLI remain roadmap work.
+Archive packaging, `bil init`, and `bil import` remain roadmap work.
 
 ---
 
@@ -452,9 +463,6 @@ Archive packaging and a first-class report-generation CLI remain roadmap work.
 ```bash
 bil init
 bil import axle ./verify-proof-response.json
-bil report decision.bil --format markdown
-bil report decision.bil --format json
-bil report decision.bil --format sarif
 ```
 
 ---
@@ -500,7 +508,20 @@ bil receipt issue ./proof.bil --mode embedded --algorithm ed25519 --private-key 
 Render the verification report in Markdown:
 
 ```bash
-bil bundle inspect ./proof.bil --format markdown
+bil report ./proof.bil --kind verification --format markdown
+```
+
+Render the verification report as SARIF:
+
+```bash
+bil report ./proof.bil --kind verification --format sarif
+```
+
+Render the institutional audit and regulatory views:
+
+```bash
+bil report ./proof.bil --kind audit --format markdown
+bil report ./proof.bil --kind regulatory --format markdown
 ```
 
 Verify a proof through the Rust client:
@@ -694,18 +715,17 @@ Implemented in this bootstrap:
 9. Receipt issuance in `bil-receipt`
 10. Structured verification in `bil-verify`
 11. Institutional profile validation in `bil-risk`, `bil-legal`, and `bil-policy`
-12. Markdown report rendering in `bil-report`
+12. First-class verification, audit, regulatory, and SARIF report generation in `bil-report`
 13. Expanded Rust CLI in `bil-cli`
 14. Python compatibility bridge via `axle bil ...`
-15. Interoperability example bundles, receipts, and report templates
+15. Interoperability example bundles, receipts, report templates, and canonical generated report fixtures
 
 Next development priorities:
 
 1. archive packaging and portability options
-2. first-class report generation
-3. richer interoperability outputs beyond committed fixtures
-4. example corpus expansion
-5. workflow hardening around committed fixtures
+2. richer interoperability outputs beyond committed fixtures
+3. example corpus expansion
+4. workflow hardening around committed fixtures
 
 ---
 
@@ -759,6 +779,15 @@ Implemented:
 * Lean proof bundle examples
 * AI decision bundle examples
 * audit and regulatory report templates
+
+### Phase 6 — Report Generation
+
+Implemented:
+
+* top-level `bil report` CLI
+* verification, audit, and regulatory report kinds
+* JSON and Markdown output for all report kinds
+* SARIF output for verification findings
 
 ---
 

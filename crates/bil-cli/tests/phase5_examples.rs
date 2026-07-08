@@ -96,6 +96,7 @@ fn phase5_templates_and_example_docs_exist() {
     let root = repo_root();
     for path in [
         "specs/assurance-interop-v0.md",
+        "specs/bil-report-v0.md",
         "templates/reports/audit-review-v0.md",
         "templates/reports/regulatory-review-v0.md",
         "examples/axle-proof-artifact/README.md",

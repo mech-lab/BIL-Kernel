@@ -1,12 +1,12 @@
-# Audit Review Example
+# Audit Review Report
 
 ## Objective
 
-Provide a jurisdiction-neutral audit review of the committed AI decision example bundle using only bundle-native and institutional evidence.
+Provide a jurisdiction-neutral audit review of a BIL bundle using only bundle-native and institutional evidence.
 
 ## Bundle Identity
 
-- Bundle path: `examples/ai-decision-bundle/ai-decision-bundle.bil`
+- Bundle path: `./examples/ai-decision-bundle/ai-decision-bundle.bil`
 - Bundle id: `bil:v0:sha256:d7a0f0a798863848cacd97beb423f745db3b1f861be512e3b220017fb5cf8f21`
 - Bundle kind: `axle-evidence`
 - Profile version: `axle-compat-v0`
@@ -43,4 +43,5 @@ Provide a jurisdiction-neutral audit review of the committed AI decision example
 
 ## Conclusion
 
-`The bundle preserves a verifiable audit trail for the example AI-assisted credit decision and its institutional review context.`
+`The bundle preserves a verifiable audit trail for the reviewed record and its institutional context.`
+

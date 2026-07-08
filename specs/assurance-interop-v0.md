@@ -44,6 +44,6 @@ They are:
 
 - jurisdiction-neutral
 - grounded only in current bundle, receipt, manifest, Merkle, and institutional fields
-- illustrative rather than executable rendering logic
+- aligned with the deterministic output of the Phase 6 `bil report` CLI
 
-Rendered example reports may be committed beside example fixtures, but Phase 5 does not add a `bil report` command.
+Rendered example reports may be committed beside example fixtures and regenerated through `bil report`.

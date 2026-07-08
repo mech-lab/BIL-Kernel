@@ -197,6 +197,33 @@ impl BundleReader {
             .verify(&self.root, options)
             .map_err(BundleError::Verify)
     }
+
+    pub fn report_context_with_options(
+        &self,
+        options: &BundleInspectOptions,
+    ) -> Result<BundleInspectionContext, BundleError> {
+        let verification = self.inspect_with_options(options)?;
+        let descriptor: BundleDescriptor = read_json(self.root.join(BUNDLE_JSON_PATH))?;
+        let manifest: BundleManifest = read_json(self.root.join(&descriptor.manifest_path))?;
+        let merkle: MerkleDocument = read_json(self.root.join(&descriptor.merkle_path))?;
+        let institutional = read_optional_json(
+            &self.root,
+            descriptor.payload_paths.institutional.as_deref(),
+        )?;
+        let risk = read_optional_json(&self.root, descriptor.payload_paths.risk.as_deref())?;
+        let controls =
+            read_optional_json(&self.root, descriptor.payload_paths.controls.as_deref())?;
+
+        Ok(BundleInspectionContext {
+            verification,
+            descriptor,
+            manifest,
+            merkle,
+            institutional,
+            risk,
+            controls,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -216,6 +243,17 @@ pub struct InstitutionalizationMaterialization {
     pub output_dir: PathBuf,
     pub previous_bundle_id: String,
     pub external_receipt_notice: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct BundleInspectionContext {
+    pub verification: VerificationReport,
+    pub descriptor: BundleDescriptor,
+    pub manifest: BundleManifest,
+    pub merkle: MerkleDocument,
+    pub institutional: Option<InstitutionalProfilesDocument>,
+    pub risk: Option<RiskRegistryDocument>,
+    pub controls: Option<ControlRegistryDocument>,
 }
 
 #[derive(Debug, Clone)]
@@ -420,6 +458,20 @@ where
 {
     let bytes = fs::read(&path)?;
     serde_json::from_slice(&bytes).map_err(BundleError::Json)
+}
+
+fn read_optional_json<T>(root: &Path, path: Option<&str>) -> Result<Option<T>, BundleError>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let resolved = root.join(path);
+    if !resolved.exists() {
+        return Ok(None);
+    }
+    read_json(resolved).map(Some)
 }
 
 #[cfg(test)]

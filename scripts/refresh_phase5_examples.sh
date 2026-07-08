@@ -60,5 +60,21 @@ cp "$PUBLIC_KEY" "$ROOT/examples/lean-proof-bundle/trust-key.der"
   --issued-at "$ISSUED_AT" >/dev/null
 cp "$PUBLIC_KEY" "$ROOT/examples/ai-decision-bundle/trust-key.der"
 
-echo "Rendered report examples under examples/ai-decision-bundle/reports remain maintained manually."
-echo "Phase 5 example bundles and receipts refreshed."
+(
+  cd "$ROOT"
+  "${BIL[@]}" report \
+    ./examples/ai-decision-bundle/ai-decision-bundle.bil \
+    --kind audit \
+    --format markdown \
+    --trust-key ./examples/ai-decision-bundle/trust-key.der \
+    >./examples/ai-decision-bundle/reports/audit-review-example.md
+
+  "${BIL[@]}" report \
+    ./examples/ai-decision-bundle/ai-decision-bundle.bil \
+    --kind regulatory \
+    --format markdown \
+    --trust-key ./examples/ai-decision-bundle/trust-key.der \
+    >./examples/ai-decision-bundle/reports/regulatory-review-example.md
+)
+
+echo "Phase 5 example bundles, receipts, and report examples refreshed."

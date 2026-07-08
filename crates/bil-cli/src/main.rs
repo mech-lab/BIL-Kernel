@@ -1,10 +1,13 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use bil_bundle::{BundleBuilder, BundleInspectOptions, BundleReader};
 use bil_client::AxleClient;
 use bil_core::{AxleArtifactKind, BundleKind, DigestSet, ReceiptMode, SignatureAlgorithm};
 use bil_hash::{canonical_json_slice, digest_bytes};
 use bil_receipt::{ReceiptIssueOptions, ReceiptIssuer};
-use bil_report::render_markdown;
+use bil_report::{
+    AuditReviewReport, RegulatoryReviewReport, render_audit_markdown, render_regulatory_markdown,
+    render_verification_markdown, render_verification_sarif,
+};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use std::fs;
@@ -27,6 +30,7 @@ enum Command {
     Environments(EnvironmentsArgs),
     Axle(AxleArgs),
     Hash(HashArgs),
+    Report(ReportArgs),
     Bundle(BundleArgs),
     Receipt(ReceiptArgs),
 }
@@ -67,6 +71,24 @@ struct BundleArgs {
 struct ReceiptArgs {
     #[command(subcommand)]
     command: ReceiptCommand,
+}
+
+#[derive(Debug, Args)]
+struct ReportArgs {
+    #[arg(value_name = "DIR")]
+    bundle_path: String,
+    #[arg(long, value_enum, default_value_t = ReportKind::Verification)]
+    kind: ReportKind,
+    #[arg(long, value_enum, default_value_t = ReportFormat::Json)]
+    format: ReportFormat,
+    #[arg(long, value_name = "FILE")]
+    receipt: Option<String>,
+    #[arg(long = "trust-key", value_name = "FILE")]
+    trust_keys: Vec<String>,
+    #[arg(long, action = ArgAction::SetTrue)]
+    require_receipt: bool,
+    #[arg(long, action = ArgAction::SetTrue)]
+    require_trust: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -165,8 +187,8 @@ struct BundleInspectArgs {
     bundle_path: String,
     #[arg(long, value_name = "FILE")]
     receipt: Option<String>,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-    format: OutputFormat,
+    #[arg(long, value_enum, default_value_t = InspectOutputFormat::Json)]
+    format: InspectOutputFormat,
     #[arg(long = "trust-key", value_name = "FILE")]
     trust_keys: Vec<String>,
     #[arg(long, action = ArgAction::SetTrue)]
@@ -230,9 +252,25 @@ impl CommonArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-enum OutputFormat {
+enum InspectOutputFormat {
     Json,
     Markdown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum ReportKind {
+    Verification,
+    Audit,
+    Regulatory,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum ReportFormat {
+    Json,
+    Markdown,
+    Sarif,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -314,6 +352,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             print_json(&output)?;
             Ok(ExitCode::SUCCESS)
         }
+        Command::Report(args) => run_report_command(args),
         Command::Bundle(args) => run_bundle_command(args.command),
         Command::Receipt(args) => run_receipt_command(args.command),
     }
@@ -473,8 +512,10 @@ fn run_bundle_command(command: BundleCommand) -> Result<ExitCode> {
                     require_trust: args.require_trust,
                 })?;
             match args.format {
-                OutputFormat::Json => print_json(&inspection)?,
-                OutputFormat::Markdown => print_markdown(&render_markdown(&inspection)),
+                InspectOutputFormat::Json => print_json(&inspection)?,
+                InspectOutputFormat::Markdown => {
+                    print_markdown(&render_verification_markdown(&inspection))
+                }
             }
             if inspection.overall_verified {
                 Ok(ExitCode::SUCCESS)
@@ -483,6 +524,80 @@ fn run_bundle_command(command: BundleCommand) -> Result<ExitCode> {
             }
         }
     }
+}
+
+fn run_report_command(args: ReportArgs) -> Result<ExitCode> {
+    if args.kind != ReportKind::Verification && args.format == ReportFormat::Sarif {
+        bail!("SARIF output is only supported for verification reports");
+    }
+
+    let context = BundleReader::open(PathBuf::from(&args.bundle_path))?
+        .report_context_with_options(&BundleInspectOptions {
+            receipt_path: args.receipt.map(PathBuf::from),
+            trust_key_paths: args.trust_keys.into_iter().map(PathBuf::from).collect(),
+            require_receipt: args.require_receipt,
+            require_trust: args.require_trust,
+        })?;
+
+    let exit = match args.kind {
+        ReportKind::Verification => {
+            match args.format {
+                ReportFormat::Json => print_json(&context.verification)?,
+                ReportFormat::Markdown => {
+                    print_markdown(&render_verification_markdown(&context.verification))
+                }
+                ReportFormat::Sarif => {
+                    print_json(&render_verification_sarif(&context.verification))?
+                }
+            }
+            if context.verification.overall_verified {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(2)
+            }
+        }
+        ReportKind::Audit => {
+            let report = AuditReviewReport::from_context(&context);
+            match args.format {
+                ReportFormat::Json => print_json(&report)?,
+                ReportFormat::Markdown => print_markdown(&render_audit_markdown(&report)),
+                ReportFormat::Sarif => unreachable!("validated above"),
+            }
+            if audit_or_regulatory_success(&context) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(2)
+            }
+        }
+        ReportKind::Regulatory => {
+            let report = RegulatoryReviewReport::from_context(&context);
+            match args.format {
+                ReportFormat::Json => print_json(&report)?,
+                ReportFormat::Markdown => print_markdown(&render_regulatory_markdown(&report)),
+                ReportFormat::Sarif => unreachable!("validated above"),
+            }
+            if audit_or_regulatory_success(&context) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(2)
+            }
+        }
+    };
+
+    Ok(exit)
+}
+
+fn audit_or_regulatory_success(context: &bil_bundle::BundleInspectionContext) -> bool {
+    let report = &context.verification;
+    report.overall_verified
+        && report.institutional_layer_present
+        && report.banking_profile_verified
+        && report.insurance_profile_verified
+        && report.legal_governance_profile_verified
+        && report.ai_assurance_profile_verified
+        && report.risk_registry_verified
+        && report.controls_registry_verified
+        && report.cross_profile_consistency_verified
 }
 
 fn run_receipt_command(command: ReceiptCommand) -> Result<ExitCode> {

@@ -1,8 +1,8 @@
-# Regulatory Review Example
+# Regulatory Review Report
 
 ## Objective
 
-Summarize the committed AI decision example bundle for jurisdiction-neutral regulatory or examination-style review.
+Summarize a BIL bundle for jurisdiction-neutral regulatory or examination-style review.
 
 ## Record Overview
 
@@ -26,16 +26,17 @@ Summarize the committed AI decision example bundle for jurisdiction-neutral regu
 - Insurance review status: `underwriter-reviewed`
 - Legal compliance posture: `internally-compliant`
 - Human review status: `completed`
-- Referenced risks: `risk-model-drift, risk-missing-human-review`
-- Referenced controls: `control-human-review, control-evidence-retention`
+- Referenced risks: `risk-missing-human-review; risk-model-drift`
+- Referenced controls: `control-evidence-retention; control-human-review`
 
 ## Examination Notes
 
 - Rights and duties summary: `The institution must preserve adverse-decision evidence, document reviewer intervention, and maintain traceable supporting artifacts.`
 - Decision traceability: `Decision source, proof artifact, risk registry, and control registry are linked through the bundle manifest.`
-- Control evidence paths: `axle.json; institutional.json; risk.json; controls.json`
+- Control evidence paths: `axle.json; controls.json; institutional.json; risk.json`
 - Findings summary: `None`
 
 ## Conclusion
 
-`The example record is materially complete for a portable institutional review based on the fields present in the current Phase 3 bundle model.`
+`The record is materially complete for portable institutional review based on the fields present in the current bundle model.`
+
